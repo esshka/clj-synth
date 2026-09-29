@@ -1,0 +1,7 @@
+.env
+.cpcache/
+.lsp/.cache/
+.clj-kondo/.cache/
+codedb.snapshot
+.DS_Store
+.nrepl-port
