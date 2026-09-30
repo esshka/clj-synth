@@ -106,6 +106,10 @@ client (`jev/client`), the mock (`policy/mock-policy`) and the scripted policies
 `generate/asker` wraps a policy with `memoize` and a call counter, so an identical question is
 never paid for twice.
 
+**Proved, not only tested.** A Lean 4 model in [`verify/`](verify/README.md) proves that every
+program the generator can build binds all its names, places `recur` only in tail position with the
+right arity, and calls functions with the right number of arguments.
+
 **Validate at the boundary.** Every API answer is checked with `clojure.spec` against the type of
 the question it answers. A malformed answer fails immediately, with an error that names the
 question and the field.
@@ -128,9 +132,10 @@ never assembled from strings.
    partial program, the names in scope and the meaning of the enclosing forms (a `fn params` slot
    inside `reduce` is told about `(f acc item)`).
 3. **Test.** The completed tree is printed and executed with the tests.
-4. **Score.** On failure, the first failing test is re-run with a spy around each chosen subtree.
-   Jev then rates every subtree from 0 (wrong) to 3 (correct), given the values it produced. Score
-   batches are sent in parallel.
+4. **Score.** On failure, every test is re-run, each in its own process, with a spy around each
+   chosen subtree. Jev then rates every subtree from 0 (wrong) to 3 (correct), given the values it
+   produced on each test beside that test's result, so passing and failing runs can be compared.
+   Score batches are sent in parallel.
 5. **Edit.** Each decision proposes edits: its next-best options and, for operators such as `-`,
    `<` and `cons`, a swap of the two arguments. The six lowest-rated subtrees are also asked
    whether to keep, replace or wrap them. A wrap keeps the subtree as `a` in `(+ a b)`, `(* a b)`
@@ -139,7 +144,9 @@ never assembled from strings.
 6. **Search.** An edit's priority is `p(option) × suspicion(score)`, halved for each edit away from
    the first program. Every second attempt applies the best pair of non-overlapping edits instead
    of a single one. An edit rebuilds only its own subtree; all other decisions are replayed while
-   they remain legal. Up to `--tries` programs are tested, and duplicates are not counted.
+   they remain legal. A rebuilt hole is also shown the parent's test results, the code the edit
+   changes with its values, and the last four programs that failed. Up to `--tries` programs are
+   tested, and duplicates are not counted.
 
 ## Project layout
 
@@ -155,6 +162,7 @@ never assembled from strings.
 | `src/cljjev/policy.clj` | Deterministic mock policy |
 | `src/cljjev/cli.clj`, `src/cljjev/bench.clj` | Command-line and benchmark entry points |
 | `dev/user.clj` | REPL helpers |
+| `verify/` | Lean 4 model of the core and proofs of its guarantees |
 | `test/cljjev/*_test.clj` | One test namespace per source namespace; shared fixtures in `test_support.clj` |
 
 Runtime dependencies are `org.clojure/data.json` and `org.clojure/tools.cli`; HTTP uses
@@ -167,6 +175,7 @@ clojure -M:test       # run every *-test namespace
 clojure -M:lint       # clj-kondo
 clojure -M:fmt        # cljfmt check (clojure -M:fmt/fix to rewrite)
 clojure -M:bench      # live benchmark; add --mock for an offline run
+cd verify && lake build   # check the Lean 4 proofs
 ```
 
 Before committing, run the tests, the linter and the formatter check. Record every user-visible

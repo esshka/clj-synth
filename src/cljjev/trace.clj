@@ -10,19 +10,27 @@
 
 (def ^:private prelude
   (postwalk-replace
-   {'KEEP 4} ; values kept per subtree
+   {'KEEP 3} ; first values kept per subtree; the last one is kept too
    '[(def cljjev-trace (atom {}))
      (def cljjev-steps (atom 0))
      (defn cljjev-spy [k v]
        (when (> (swap! cljjev-steps inc) 100000) (throw (ex-info "trace limit" {})))
-       (swap! cljjev-trace (fn [t] (if (< (count (get t k)) KEEP) (update t k (fnil conj []) v) t)))
+       (swap! cljjev-trace update k
+              (fn [{:keys [n head]}]
+                {:n (inc (or n 0))
+                 :head (if (< (count head) KEEP) ((fnil conj []) head v) head)
+                 :final v}))
        v)]))
 
+;; a recursion's base case runs last, so the last value is kept, not only the first
 (def ^:private report
   (postwalk-replace
-   {'MARK spy-mark 'WIDTH 60} ; characters kept per value
-   '(doseq [[k vs] @cljjev-trace v vs]
-      (println MARK k (let [s (pr-str v)] (subs s 0 (min WIDTH (count s))))))))
+   {'MARK spy-mark 'KEEP 3 'WIDTH 60} ; characters kept per value
+   '(doseq [[k {:keys [n head final]}] @cljjev-trace
+            s (concat (map pr-str head)
+                      (when (> n (inc KEEP)) [(str "... " (- n KEEP 1) " more")])
+                      (when (> n KEEP) [(pr-str final)]))]
+      (println MARK k (subs s 0 (min WIDTH (count s)))))))
 
 (defn has-recur?
   "Returns true if node is, or holds, a recur form."

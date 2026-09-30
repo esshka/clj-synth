@@ -5,3 +5,4 @@
 codedb.snapshot
 .DS_Store
 .nrepl-port
+verify/.lake/

@@ -17,15 +17,20 @@
   (str "Which production fills the hole marked __HOLE__ in `partial` (see `hole`), "
        "so the finished program implements `spec` and passes `tests`?"))
 
+(def ^:private retry-note
+  (str " `previous_attempt` is the program this one revises, with its `test_results`; "
+       "`previous_attempt.edited` is the code being changed and what it computed on each "
+       "test, and `previous_attempt.earlier`, when present, lists other programs that failed."))
+
 (def ^:private fit-question
   (str "How correct is `subtree` in its place (`role`) inside `program`, "
-       "given `spec` and `failing_tests`? "
-       "`values` are what `subtree` evaluated to while running `traced_test`."))
+       "given `spec` and `test_results`? "
+       "`values`, when present, lists what `subtree` evaluated to during each test."))
 
 (def ^:private act-question
   (str "What should happen to `subtree` (in its place `role` in `program`) "
-       "so the program passes `failing_tests`? "
-       "`values` are what `subtree` evaluated to while running `traced_test`."))
+       "so the program passes every test in `test_results`? "
+       "`values`, when present, lists what `subtree` evaluated to during each test."))
 
 (def ^:private fit-levels
   ["Wrong: this code causes the failing tests and must change"
@@ -51,6 +56,8 @@
 (def ^:private pair-top 4)
 ;; per edit away from the first program, so one bad branch cannot starve the rest
 (def ^:private depth-decay 0.5)
+;; ponytail: more failed programs mostly distract Jev; raise only if a benchmark says so
+(def ^:private earlier-shown 4)
 
 (def default-limits
   {:max-depth 8 ; 6 left (+ (* 3 x) 1) unreachable inside collatz's loop/recur/if
@@ -101,9 +108,8 @@
              (swap! calls inc)
              (policy state questions))))
 
-(defn- failing [results]
-  (vec (for [r results :when (not (:ok r))]
-         {:test (:test r) :result (:detail r)})))
+(defn- test-results [results]
+  (mapv (fn [r] {:test (:test r) :result (:detail r)}) results))
 
 (defn- within? [path root]
   (and (>= (count path) (count root))
@@ -146,7 +152,10 @@
   (if (= 1 (count options))
     {:path path :hole hole :choice (key (first options)) :probs {}}
     (let [criteria (ordered (for [[k [text _]] options] [k text]))
-          question {:type "choice" :instructions prod-question :criteria criteria}
+          question {:type "choice"
+                    :instructions (cond-> prod-question
+                                    (:previous_attempt state) (str retry-note))
+                    :criteria criteria}
           answer (get (ask state {"prod" question}) "prod")
           choice (get answer "choice")]
       (when-not (contains? criteria choice)
@@ -184,36 +193,29 @@
 
 ;;; Score
 
-(defn- review [pools tree results traced]
+(defn- review [pools tree results]
   {:spec (:prose pools)
-   :tests (:tests pools)
    :program (render tree)
-   :failing_tests (failing results)
-   :traced_test traced})
+   :test_results (test-results results)})
 
-(defn- about [tree d question values]
-  {:role (get-in d [:hole :hint])
-   :subtree (flat (node-at tree (:path d)))
-   :values (if (seq values) (str/join ", " values) "never evaluated")
-   :question question})
+(defn- evaluations
+  "Returns what a subtree computed on each traced test, beside that test's result."
+  [results values]
+  (vec (for [r results
+             :when (contains? values (:test r))]
+         {:test (:test r)
+          :result (:detail r)
+          :values (if-let [vs (seq (get values (:test r)))]
+                    (str/join ", " vs)
+                    "never evaluated")})))
 
-(defn traced
-  "Returns [test {decision-index values}]: what each chosen subtree computed on the
-  first failing test."
-  [tree decisions results trace]
-  (let [test (:test (first (remove :ok results)))
-        spots (into {} (for [[i d] (map-indexed vector decisions)
-                             :when (and (seq (:path d))
-                                        (seq (:probs d))
-                                        (not (#{"params" "bindings" "fname" "fn"}
-                                              (get-in d [:hole :kind])))
-                                        ;; a spy around recur would move it out of tail position
-                                        (not (has-recur? (node-at tree (:path d)))))]
-                         [(:path d) i]))
-        raw (trace (render (instrument tree spots)) test)]
-    [test (if (seq raw)
-            (into {} (for [i (vals spots)] [i (get raw (str i) [])]))
-            {})]))
+(defn- about
+  "Returns decision d's subtree and role; with the values it computed per test when it
+  was traced. Params and names are not expressions, so they get no values."
+  [tree d results values]
+  (cond-> {:role (get-in d [:hole :hint])
+           :subtree (flat (node-at tree (:path d)))}
+    values (assoc :values (evaluations results values))))
 
 (defn- in-parallel
   "Returns (mapv f xs), each call on its own thread. Rethrows a call's own exception,
@@ -222,16 +224,37 @@
   (mapv #(try @% (catch ExecutionException e (throw (ex-cause e))))
         (mapv #(future (f %)) xs)))
 
+(defn traced
+  "Returns {decision-index {test values}}: what each chosen subtree computed on every
+  test, so passing and failing runs can be compared. Untraced subtrees, and tests whose
+  run produced nothing (a timeout), are missing."
+  [tree decisions results trace]
+  (let [spots (into {} (for [[i d] (map-indexed vector decisions)
+                             :when (and (seq (:path d))
+                                        (seq (:probs d))
+                                        (not (#{"params" "bindings" "fname" "fn"}
+                                              (get-in d [:hole :kind])))
+                                        ;; a spy around recur would move it out of tail position
+                                        (not (has-recur? (node-at tree (:path d)))))]
+                         [(:path d) i]))
+        code (render (instrument tree spots))
+        runs (in-parallel #(trace code (:test %)) results)]
+    (into {} (for [i (vals spots)]
+               [i (into {} (for [[r raw] (map vector results runs)
+                                 :when (seq raw)]
+                             [(:test r) (get raw (str i) [])]))]))))
+
 (defn- score-fits
   "Returns {decision-index fit}: Jev's Score, 0 wrong .. 3 correct, of every subtree it
   chose. The batches of questions go out in parallel."
-  [ask pools tree decisions results [test values]]
-  (let [state (review pools tree results test)
+  [ask pools tree decisions results values]
+  (let [state (review pools tree results)
         questions (for [[i d] (map-indexed vector decisions)
                         :when (and (seq (:path d)) (seq (:probs d)))]
                     [(str "fit" i) {:type "score"
                                     :criteria fit-levels
-                                    :instructions (about tree d fit-question (get values i))}])]
+                                    :instructions (assoc (about tree d results (get values i))
+                                                         :question fit-question)}])]
     (into {} (for [answers (in-parallel #(ask state (ordered %))
                                         (partition-all fit-batch questions))
                    [q a] answers]
@@ -283,7 +306,7 @@
 (defn- act
   "Returns the keep / replace / wrap question for d; each option shows the code it
   leads to: (+ 3 1) -> (+ (* 3 _) 1)."
-  [tree d values]
+  [tree d results values]
   (let [path (:path d)
         node (node-at tree path)
         parent (node-at tree (pop path))
@@ -298,12 +321,14 @@
      :criteria (ordered (concat [["keep" (str "keep " code ": it is right")]
                                  ["replace" (str "replace " code " with different code")]]
                                 wrap-options))
-     :instructions (assoc (about tree d act-question values) :inside (flat parent))}))
+     :instructions (assoc (about tree d results values)
+                          :inside (flat parent)
+                          :question act-question)}))
 
 (defn wrap-edits
   "Returns wrap edits for the lowest-fit subtrees: (fib (- n 1)) is half of
   (+ (fib (- n 1)) (fib (- n 2)))."
-  [ask pools tree attempt fits start [test values]]
+  [ask pools tree attempt fits start values]
   (let [decisions (:decisions attempt)
         worst (->> (for [[i f] fits
                          :when (and (>= i start) (seq (wrappers (nth decisions i))))]
@@ -312,8 +337,9 @@
                    (take wrap-ask))]
     (when (seq worst)
       (let [questions (ordered (for [[_ i] worst]
-                                 [(str "act" i) (act tree (nth decisions i) (get values i))]))
-            answers (ask (review pools tree (:results attempt) test) questions)]
+                                 [(str "act" i) (act tree (nth decisions i) (:results attempt)
+                                                     (get values i))]))
+            answers (ask (review pools tree (:results attempt)) questions)]
         (vec (for [[fit i] worst
                    op (wrappers (nth decisions i))
                    :let [p (get-in answers [(str "act" i) "probabilities" op] 0.0)]
@@ -438,13 +464,32 @@
   "Returns search with the edits of the failed attempt added to its heaps."
   [{:keys [ask pools limits trace]} search tree decisions attempt]
   (let [start (:start search)
-        trace-info (traced tree decisions (:results attempt) trace)
-        fit (score-fits ask pools tree decisions (:results attempt) trace-info)
+        results (:results attempt)
+        values (traced tree decisions results trace)
+        fit (score-fits ask pools tree decisions results values)
         found (vec (concat (single-edits attempt fit start limits)
-                           (wrap-edits ask pools tree attempt fit start trace-info)))]
+                           (wrap-edits ask pools tree attempt fit start values)))
+        ;; kept for the feedback a rebuild of this attempt gets
+        attempt (assoc attempt :tree tree :values values)]
     (-> search
         (push :singles attempt (for [[p i alt] found] [p [[i alt]]]))
         (push :pairs attempt (pair-edits found attempt)))))
+
+(defn- feedback
+  "Returns what a rebuild is told about its parent: the test results, the code the
+  edit changes with what it computed, and the latest other programs that failed."
+  [search parent changes]
+  (let [earlier (->> (:attempts search)
+                     (remove #(= (:code %) (:code parent)))
+                     (take-last earlier-shown)
+                     (mapv (fn [a] {:program (:code a)
+                                    :passed (str (score a) " of " (count (:results a)) " tests")})))]
+    (cond-> {:program (:code parent)
+             :test_results (test-results (:results parent))
+             :edited (vec (for [[i _] changes]
+                            (about (:tree parent) (nth (:decisions parent) i)
+                                   (:results parent) (get (:values parent) i))))}
+      (seq earlier) (assoc :earlier earlier))))
 
 (defn- pop-edit
   "Returns search set to build the next edit, or nil when no edit is left. Pairs rank
@@ -458,7 +503,7 @@
                  :plan (make-plan parent changes)
                  :start (inc (apply min (map first changes)))
                  :edit (describe parent changes)
-                 :feedback {:program (:code parent) :failing_tests (failing (:results parent))}
+                 :feedback (feedback search parent changes)
                  :depth (inc (:depth parent)))))))
 
 (defn solve

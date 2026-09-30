@@ -29,6 +29,14 @@ Planned work, highest priority first. Move an item to [CHANGELOG.md](CHANGELOG.m
 - [ ] **Keep benchmark results as data.** Write each run to `bench/results/<date>.edn` so changes can
   be compared without re-running.
 
+## Verification
+
+- [ ] **Check the Lean model against the code.** Generate random programs with the Clojure
+  generator and check each one against an executable version of `WellFormed`, so a difference
+  between `verify/` and `catalog.clj` / `env.clj` is caught by a test.
+- [ ] **Formalize left-to-right filling.** Prove that filling holes left to right with
+  `env/context` scopes gives the same programs as the top-down `Gen` relation.
+
 ## Engineering
 
 - [ ] **Continuous integration.** Run `clojure -M:test`, `clojure -M:lint` and `clojure -M:fmt` on

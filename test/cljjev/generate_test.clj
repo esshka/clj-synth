@@ -38,7 +38,7 @@
         judge (fn [_ questions]
                 (into {} (for [q (keys questions)] [q {"probabilities" {"*" 0.7 "replace" 0.3}}])))
         edits (g/wrap-edits (g/asker judge (atom 0)) fact-pools tree (attempt parent)
-                            {i 0.2 (inc i) 2.9} 0 ["t" {}])]
+                            {i 0.2 (inc i) 2.9} 0 {})]
     (is (some #{[i "wrap:*"]} (map rest edits)))))
 
 (deftest pair-applies-two-disjoint-edits-and-skips-nested-ones
@@ -69,3 +69,52 @@
   (when (runtime)
     (let [out (g/solve fact-spec (mock-policy))]
       (is (g/passed? out) (g/source (g/best out))))))
+
+(defn- recorder
+  "Returns [policy log]: the policy answers like the mock and logs every request."
+  []
+  (let [log (atom [])
+        mock (mock-policy)]
+    [(fn [state questions] (swap! log conj [state questions]) (mock state questions)) log]))
+
+(deftest score-questions-see-values-of-every-test
+  (let [[tree parent] (build short-keys)
+        at (at parent)
+        results [{:test "(= 1 (factorial 1))" :ok true :detail "PASS"}
+                 {:test "(= 6 (factorial 3))" :ok false :detail "FAIL expected 6, got 3"}]
+        values {(at "* b") {"(= 1 (factorial 1))" [] "(= 6 (factorial 3))" ["1"]}}
+        [policy log] (recorder)]
+    (#'g/score-fits (g/asker policy (atom 0)) fact-pools tree parent results values)
+    (let [[state questions] (first @log)
+          ins #(get-in questions [(str "fit" (at %)) :instructions])]
+      (is (= [{:test "(= 1 (factorial 1))" :result "PASS"}
+              {:test "(= 6 (factorial 3))" :result "FAIL expected 6, got 3"}]
+             (:test_results state)))
+      (is (= [{:test "(= 1 (factorial 1))" :result "PASS" :values "never evaluated"}
+              {:test "(= 6 (factorial 3))" :result "FAIL expected 6, got 3" :values "1"}]
+             (:values (ins "* b"))))
+      ;; a params vector is not an expression: no values, not "never evaluated"
+      (is (not (contains? (ins "defn params") :values))))))
+
+(deftest a-rebuild-sees-the-edited-code-and-earlier-programs
+  (let [[tree parent] (build short-keys)
+        i ((at parent) "* b")
+        results [{:test "(= 6 (factorial 3))" :ok false :detail "FAIL expected 6, got 3"}]
+        attempt {:code "(parent)" :decisions parent :results results :depth 0
+                 :tree tree :values {i {"(= 6 (factorial 3))" ["1"]}}}
+        search {:attempts [{:code "(old)" :results results} {:code "(parent)" :results results}]}
+        fb (#'g/feedback search attempt [[i "local:n"]])]
+    (is (= [{:role "* b" :subtree "1"
+             :values [{:test "(= 6 (factorial 3))" :result "FAIL expected 6, got 3" :values "1"}]}]
+           (:edited fb)))
+    (is (= [{:program "(old)" :passed "0 of 1 tests"}] (:earlier fb)))))
+
+(deftest the-retry-note-appears-only-on-a-rebuild
+  (let [[policy log] (recorder)
+        ask (g/asker policy (atom 0))]
+    (g/build ask fact-pools {} limits (fn [_]) nil)
+    (g/build ask fact-pools {} limits (fn [_]) {:program "(p)"})
+    (let [texts (map #(get-in % [1 "prod" :instructions]) @log)
+          retry? #(re-find #"previous_attempt" %)]
+      (is (some retry? texts))
+      (is (some (complement retry?) texts)))))

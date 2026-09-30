@@ -25,6 +25,26 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- Lean 4 model and proofs in `verify/`: every program the generator can build binds all its
+  names, places `recur` only in tail position with the right arity, and calls functions with the
+  right number of arguments. Run `lake build` in `verify/`.
+
+### Changed
+
+- Score and keep/replace/wrap questions show what each subtree computed on every test, next to
+  that test's result, instead of on the first failing test only. Params and names get no values
+  rather than "never evaluated".
+- A rebuilt hole is shown the parent's test results, the code the edit changes with its values, and
+  the last four programs that failed.
+- Traces keep the first three values, a count, and the last value of each subtree, so a recursion's
+  base case is no longer cut off.
+
+Benchmark (live, two runs each): hard 11 and 10 of 14 before, 10 and 10 after; API calls 324 and
+430 before, 401 and 444 after. Basic 15/15 in both runs after (204 and 165 calls). The difference
+is within run-to-run noise.
+
 ## [0.1.0] - 2026-09-29
 
 ### Added
