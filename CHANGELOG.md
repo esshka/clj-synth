@@ -30,6 +30,16 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Lean 4 model and proofs in `verify/`: every program the generator can build binds all its
   names, places `recur` only in tail position with the right arity, and calls functions with the
   right number of arguments. Run `lake build` in `verify/`.
+- Restart edits: the first program also gets up to four rebuilds that switch one decision to a
+  close runner-up and ask every later hole again, so the search can leave the first program's
+  shape (`dot` found `(map * xs ys)` this way). Hard 10 and 10 of 14 before, 11 and 11 after; API
+  calls 401 and 444 before, 580 and 443 after. Basic stays 15/15 (218 and 142 calls).
+- `--pick` (and `pick` for `clojure -M:bench`): an experimental repair flow where Jev picks the next
+  change among concrete ones (restarts, runner-ups, swaps, wraps) shown as code, with every test's
+  values and the history of tried changes in one question. Two runs each: hard 10 and 11 of 14 (455
+  and 614 calls) against 12 and 12 (524 and 674) for the default flow; held-out 11 and 11 of 12 for
+  both, at 144 calls per run against 353 to 424.
+- Held-out benchmark set: `clojure -M:bench held` runs 12 specs never used for tuning.
 
 ### Changed
 
@@ -44,6 +54,13 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 Benchmark (live, two runs each): hard 11 and 10 of 14 before, 10 and 10 after; API calls 324 and
 430 before, 401 and 444 after. Basic 15/15 in both runs after (204 and 165 calls). The difference
 is within run-to-run noise.
+
+### Fixed
+
+- A program no longer outgrows `--max-steps`: each option is offered only if the steps left can
+  still close every open hole. Before, a compound form chosen just before the budget could end the
+  whole search when it happened in the first program (seen on `spread`). No change in pass rate:
+  hard 12 and 11 of 14, held-out 11 and 11 of 12.
 
 ## [0.1.0] - 2026-09-29
 

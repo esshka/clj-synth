@@ -53,6 +53,7 @@ The `(= ...)` forms inside `SPEC` become the tests; the remaining text is the de
 | `--test FORM` | | Add a test form. Repeatable. |
 | `--mock` | | Use the deterministic mock policy instead of the API. |
 | `--trace` | | Print every decision to stderr: the hole, the chosen option and its probability. |
+| `--pick` | | Experimental repair flow: Jev picks each repair among concrete changes shown as code. |
 | `--model MODEL` | `jev-latest` | Jev model to query. |
 | `--max-depth N` | `8` | Deepest nesting at which compound forms are offered. |
 | `--max-steps N` | `48` | Maximum decisions per program. |
@@ -145,8 +146,11 @@ never assembled from strings.
    the first program. Every second attempt applies the best pair of non-overlapping edits instead
    of a single one. An edit rebuilds only its own subtree; all other decisions are replayed while
    they remain legal. A rebuilt hole is also shown the parent's test results, the code the edit
-   changes with its values, and the last four programs that failed. Up to `--tries` programs are
-   tested, and duplicates are not counted.
+   changes with its values, and the last four programs that failed. The first program also gets up
+   to four restarts: one decision switched to a close runner-up (at least a fifth of the winner's
+   probability), with every later hole asked again, so the search can leave the first program's
+   shape. Singles, pairs and restarts take turns. Up to `--tries` programs are tested, and
+   duplicates are not counted.
 
 ## Project layout
 
@@ -156,13 +160,14 @@ never assembled from strings.
 | `src/cljjev/catalog.clj` | Options for each slot, their meanings and slot kinds; `legal` |
 | `src/cljjev/env.clj` | Pools from the specification; scope, tail position and recur arity at a path |
 | `src/cljjev/generate.clj` | Construction, scoring, edits and search |
-| `src/cljjev/trace.clj` | Re-runs a failing test with spies to record subtree values |
+| `src/cljjev/trace.clj` | Re-runs each test with spies to record subtree values |
 | `src/cljjev/validate.clj` | Shape checks and out-of-process test runs |
 | `src/cljjev/jev.clj` | HTTP client for the System One API, with retries and answer validation |
 | `src/cljjev/policy.clj` | Deterministic mock policy |
 | `src/cljjev/cli.clj`, `src/cljjev/bench.clj` | Command-line and benchmark entry points |
 | `dev/user.clj` | REPL helpers |
 | `verify/` | Lean 4 model of the core and proofs of its guarantees |
+| `docs/` | Static landing page for GitHub Pages |
 | `test/cljjev/*_test.clj` | One test namespace per source namespace; shared fixtures in `test_support.clj` |
 
 Runtime dependencies are `org.clojure/data.json` and `org.clojure/tools.cli`; HTTP uses
@@ -184,16 +189,29 @@ change in [CHANGELOG.md](CHANGELOG.md) as described there. Planned work is track
 
 ## Benchmark
 
-`clojure -M:bench [--mock] [basic|hard]` runs 15 basic and 14 harder specifications and reports the
-pass rate and the number of API calls. One live run on 2026-09-29 with `jev-latest`:
+`clojure -M:bench [--mock] [pick] [basic|hard|held]` runs 15 basic, 14 harder or 12 held-out
+specifications (never used for tuning) and reports the
+pass rate and the number of API calls. Two live runs on 2026-09-30 with `jev-latest`:
 
 | Set | Passed | API calls |
 | --- | --- | --- |
-| basic | 15 / 15 | 196 |
-| hard | 10 / 14 | 374 |
+| basic | 15 / 15 and 15 / 15 | 218 and 142 |
+| hard | 11 / 14 and 11 / 14 | 580 and 443 |
 
-Failures: `take-n`, `dot`, `digit-sum` and `prime?`. Model answers vary between runs, so a single
-run is a sample rather than a score; compare changes over several runs.
+Failures: `dot` and `prime?` in both runs, `collatz` in one and `take-n` in the other. Model answers
+vary between runs, so a single run is a sample rather than a score; compare changes over several runs.
+
+Flows compared on 2026-09-30, two runs each:
+
+| Flow | hard | held | basic |
+| --- | --- | --- | --- |
+| default (Score and formula) | 12 and 12 / 14 (524, 674 calls) | 11 and 11 / 12 (424, 353) | above |
+| `pick` | 10 and 11 / 14 (455, 614 calls) | 11 and 11 / 12 (144, 144) | 15 and 15 / 15 (150, 221) |
+
+The pick flow matches the default on the held-out set with far fewer calls, but trails it on the hard
+set, so it stays behind a flag. Every held-out failure was `spread`. In the pick runs its first
+program outgrew `--max-steps` and ended the search; that is now fixed, and two later default-flow
+runs scored hard 12 and 11 / 14 (466, 468 calls) and held 11 and 11 / 12 (298, 234 calls).
 
 ## Scope and limitations
 
@@ -202,14 +220,15 @@ run is a sample rather than a score; compare changes over several runs.
 
 **Not generated:** destructuring, Java interop, protocols, macros and map literals.
 
-**Fault localization is the main bottleneck.** For `take-n`, Jev observes `(> n 0)` returning true
-after `(first xs)` has already produced `()`, yet still rates the stop condition as plausible, so no
-edit to it ranks highly.
+**Fault localization is the main bottleneck.** For `take-n`, the search keeps
+`(if (> n 0) (cons (first xs) ...) [])` and never adds the missing empty-list check: Jev rates the
+stop condition as plausible even though `(first xs)` returns `nil` once `xs` is empty, so no edit
+to it ranks highly.
 
 **Results vary between runs.** For `fib`, Jev prefers `<=` over `<` with a probability of only about
 0.5, so the same specification can pass in one run and fail in the next.
 
 **Weak tests can be satisfied by wrong programs.** With only `(= 55 (fib 10))`, the search once
-returned the sum 1 + 2 + … + n. In the run above, `power` passed with `(* (power b (quot e 2)) b)`
+returned the sum 1 + 2 + … + n. In one run, `power` passed with `(* (power b (quot e 2)) b)`
 for even `e`, which is correct for `(power 2 3)` but not for `(power 2 4)`. Specifications should
 include tests that rule out such shortcuts.

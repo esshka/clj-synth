@@ -1,0 +1,468 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>cljjev: the model picks, code writes</title>
+<meta name="description" content="cljjev builds small Clojure functions from a spec and tests. A language model answers multiple-choice questions whose options are only legal code.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible+Next:wght@400;600;800&family=Fragment+Mono&display=swap" rel="stylesheet">
+<style>
+:root {
+  --paper: #edf2ef;
+  --sheet: #f7faf8;
+  --ink: #c73e63;
+  --ink-soft: #e9b9c6;
+  --graphite: #24272b;
+  --muted: #5d6468;
+  --rule: #cfdad5;
+  --pass: #2f7a57;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --paper: #15181a;
+    --sheet: #1d2124;
+    --ink: #f07c99;
+    --ink-soft: #5a2c3a;
+    --graphite: #e9eeec;
+    --muted: #9aa3a6;
+    --rule: #2e3538;
+    --pass: #6cc39a;
+  }
+}
+:root[data-theme="dark"] {
+  --paper: #15181a;
+  --sheet: #1d2124;
+  --ink: #f07c99;
+  --ink-soft: #5a2c3a;
+  --graphite: #e9eeec;
+  --muted: #9aa3a6;
+  --rule: #2e3538;
+  --pass: #6cc39a;
+}
+
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0;
+  background: var(--paper);
+  color: var(--graphite);
+  font: 400 1.0625rem/1.6 "Atkinson Hyperlegible Next", system-ui, sans-serif;
+}
+code, pre, .mono, .opt .code { font-family: "Fragment Mono", ui-monospace, monospace; font-size: .92em; font-variant-ligatures: none; }
+a { color: inherit; text-decoration-color: var(--ink); text-underline-offset: .2em; }
+a:hover { color: var(--ink); }
+:focus-visible { outline: 2px solid var(--ink); outline-offset: 3px; border-radius: 2px; }
+
+.wrap { max-width: 1080px; margin: 0 auto; padding: 0 16px; }
+@media (min-width: 720px) { .wrap { padding: 0 32px; } }
+
+header.top {
+  display: flex; justify-content: space-between; align-items: baseline;
+  padding: 20px 0; border-bottom: 1px solid var(--rule);
+}
+.mark { font-weight: 800; font-size: 1.25rem; letter-spacing: -.01em; text-decoration: none; }
+.mark span { color: var(--ink); }
+
+h1, h2, h3 { line-height: 1.12; letter-spacing: -.02em; margin: 0; }
+h1 { font-size: clamp(2.2rem, 6vw, 4.1rem); font-weight: 800; max-width: 16ch; }
+h2 { font-size: clamp(1.6rem, 3.4vw, 2.3rem); font-weight: 800; max-width: 22ch; }
+h3 { font-size: 1.15rem; font-weight: 600; letter-spacing: 0; }
+p { margin: 0; }
+.lede { font-size: 1.2rem; max-width: 60ch; color: var(--muted); }
+.prose { max-width: 64ch; }
+.prose p + p { margin-top: 1em; }
+
+section { padding: 72px 0; border-top: 1px solid var(--rule); }
+.hero { padding: 56px 0 72px; border-top: 0; }
+.hero .lede { margin-top: 20px; }
+
+/* The answer sheet: the page's one loud element */
+.sheet {
+  margin-top: 40px;
+  background: var(--sheet);
+  border: 1.5px solid var(--ink);
+  border-radius: 6px;
+  display: grid;
+  grid-template-columns: 1fr;
+}
+@media (min-width: 880px) { .sheet { grid-template-columns: 1.05fr 1fr; } }
+.sheet-code, .sheet-q { padding: 24px; min-width: 0; }
+@media (min-width: 880px) { .sheet-code { border-right: 1.5px solid var(--ink); } }
+@media (max-width: 879px) { .sheet-code { border-bottom: 1.5px solid var(--ink); } }
+.sheet-head {
+  display: flex; justify-content: space-between; gap: 12px;
+  color: var(--ink); font-size: .9rem; margin-bottom: 16px;
+}
+.spec { color: var(--muted); font-size: .95rem; margin-bottom: 12px; }
+pre.program {
+  margin: 0; white-space: pre-wrap; word-break: break-word;
+  font-size: clamp(.95rem, 2.2vw, 1.2rem); line-height: 1.7; min-height: 5.2em;
+}
+.hole-now {
+  display: inline-block; min-width: 3.2em; height: 1.35em; vertical-align: -.3em;
+  border: 2px dashed var(--ink); border-radius: 4px; background: var(--ink-soft);
+}
+.hole {
+  display: inline-block; min-width: 1.6em; height: 1.1em; vertical-align: -.2em;
+  border: 1px solid var(--rule); border-radius: 3px;
+}
+.tests { list-style: none; padding: 0; margin: 18px 0 0; font-size: .9rem; }
+.tests li { display: flex; gap: 10px; align-items: baseline; }
+.tests .st { width: 3.2em; color: var(--muted); }
+.tests .ok { color: var(--pass); font-weight: 600; }
+
+.qtitle { font-size: 1.05rem; font-weight: 600; margin-bottom: 4px; }
+.qsub { color: var(--muted); font-size: .9rem; margin-bottom: 16px; }
+.opts { list-style: none; padding: 0; margin: 0; display: grid; gap: 10px; }
+.opt {
+  display: grid; grid-template-columns: 26px 1fr auto; gap: 4px 12px; align-items: start;
+}
+.bubble {
+  width: 22px; height: 22px; border-radius: 50%; border: 1.5px solid var(--ink);
+  margin-top: 2px; position: relative;
+}
+.bubble::after {
+  content: ""; position: absolute; inset: 3px; border-radius: 50%;
+  background: var(--graphite); transform: scale(0); transition: transform .35s ease-out;
+}
+.opt.chosen .bubble::after { transform: scale(1); }
+.opt .code { font-family: "Fragment Mono", ui-monospace, monospace; font-size: .95rem; }
+.opt .desc { grid-column: 2 / 4; color: var(--muted); font-size: .85rem; line-height: 1.4; }
+.opt .pct { font-variant-numeric: tabular-nums; font-size: .9rem; }
+.bar { grid-column: 2 / 4; height: 4px; background: var(--rule); border-radius: 2px; overflow: hidden; }
+.bar i { display: block; height: 100%; background: var(--ink); }
+.opt.chosen .bar i { background: var(--graphite); }
+.more { margin-top: 14px; color: var(--muted); font-size: .85rem; }
+.controls { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 22px; }
+button {
+  font: inherit; font-size: .95rem; font-weight: 600; cursor: pointer;
+  padding: 8px 16px; border-radius: 999px;
+  border: 1.5px solid var(--graphite); background: transparent; color: var(--graphite);
+}
+button.primary { background: var(--graphite); color: var(--sheet); }
+button:disabled { opacity: .4; cursor: default; }
+.done-note { margin-top: 16px; font-size: .95rem; }
+.caption { margin-top: 14px; color: var(--muted); font-size: .9rem; max-width: 70ch; }
+
+/* Idea */
+.contrast { display: grid; gap: 32px; margin-top: 40px; }
+@media (min-width: 800px) { .contrast { grid-template-columns: 1fr 1fr; gap: 48px; } }
+.contrast h3 { margin-bottom: 12px; }
+.contrast ul { margin: 0; padding-left: 1.1em; }
+.contrast li + li { margin-top: 8px; }
+.contrast .ours h3 { color: var(--ink); }
+
+/* Concept */
+.concept { display: grid; gap: 40px; margin-top: 40px; }
+@media (min-width: 880px) { .concept { grid-template-columns: 1fr 1fr; } }
+.guarantees { list-style: none; padding: 0; margin: 24px 0 0; }
+.guarantees li { padding: 12px 0; border-top: 1px solid var(--rule); }
+.guarantees li:last-child { border-bottom: 1px solid var(--rule); }
+.slot {
+  background: var(--sheet); border: 1.5px solid var(--ink); border-radius: 6px; padding: 20px;
+  align-self: start;
+}
+.slot pre { margin: 0 0 14px; white-space: pre-wrap; font-size: 1rem; line-height: 1.7; }
+.slot .note { color: var(--muted); font-size: .9rem; }
+
+/* Solution */
+ol.loop { list-style: none; counter-reset: step; padding: 0; margin: 40px 0 0; display: grid; gap: 0; }
+ol.loop li {
+  counter-increment: step; display: grid; grid-template-columns: 3rem 1fr; gap: 16px;
+  padding: 20px 0; border-top: 1px solid var(--rule);
+}
+ol.loop li::before {
+  content: counter(step); font-weight: 800; font-size: 1.6rem; line-height: 1; color: var(--ink);
+}
+ol.loop h3 { margin-bottom: 6px; }
+ol.loop p { max-width: 62ch; }
+.edit {
+  margin-top: 40px; display: grid; gap: 16px; align-items: center;
+  background: var(--sheet); border: 1px solid var(--rule); border-radius: 6px; padding: 20px;
+}
+@media (min-width: 800px) { .edit { grid-template-columns: 1fr auto 1fr; } }
+.edit pre { margin: 0; white-space: pre-wrap; font-size: 1rem; }
+.edit .arrow { color: var(--ink); font-weight: 800; text-align: center; }
+.edit .lbl { color: var(--muted); font-size: .85rem; margin-bottom: 6px; }
+
+/* Results */
+table { border-collapse: collapse; margin-top: 32px; width: 100%; max-width: 760px; }
+th, td { text-align: left; padding: 12px 16px 12px 0; border-bottom: 1px solid var(--rule); }
+th { font-weight: 600; color: var(--muted); font-size: .9rem; }
+td.num { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.limits { margin-top: 48px; display: grid; gap: 24px; }
+@media (min-width: 800px) { .limits { grid-template-columns: 1fr 1fr; } }
+.limits p { color: var(--muted); margin-top: 6px; }
+
+/* Try */
+pre.cmd {
+  margin: 24px 0 0; padding: 18px 20px; overflow-x: auto;
+  background: var(--graphite); color: var(--paper); border-radius: 6px; font-size: .95rem; line-height: 1.6;
+}
+footer { padding: 32px 0 48px; border-top: 1px solid var(--rule); color: var(--muted); font-size: .9rem; }
+
+@media (prefers-reduced-motion: reduce) {
+  .bubble::after { transition: none; }
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <a class="mark" href="#">clj<span>jev</span></a>
+    <a href="https://github.com/esshka/clj-synth">Source on GitHub</a>
+  </header>
+
+  <main>
+    <section class="hero">
+      <h1>The model fills in bubbles. Code writes the program.</h1>
+      <p class="lede">cljjev builds small Clojure functions from a one-line spec and a few tests.
+        A language model answers one multiple-choice question for each empty slot, and every
+        option on the sheet is legal code.</p>
+
+      <div class="sheet" id="demo">
+        <div class="sheet-code">
+          <div class="sheet-head"><span>Program</span><span id="progress" aria-live="polite"></span></div>
+          <p class="spec">write a recursive factorial of n</p>
+          <pre class="program" id="program" aria-label="Program being built"></pre>
+          <ul class="tests" id="tests">
+            <li><span class="st" data-t>—</span><code>(= 120 (factorial 5))</code></li>
+            <li><span class="st" data-t>—</span><code>(= 1 (factorial 0))</code></li>
+          </ul>
+        </div>
+        <div class="sheet-q">
+          <div class="sheet-head"><span>Question for the model</span><span id="qcount"></span></div>
+          <div id="question"></div>
+          <div class="controls">
+            <button class="primary" id="play">Pause</button>
+            <button id="step">Next question</button>
+            <button id="restart">Start over</button>
+          </div>
+        </div>
+      </div>
+      <p class="caption">A recorded run of the live model (Jev, by TypeSafe). The bars are the
+        model's real probabilities. Only the top four options are shown for each question.</p>
+    </section>
+
+    <section id="idea">
+      <h2>Why not let the model write the code?</h2>
+      <div class="contrast">
+        <div>
+          <h3>A model that writes text</h3>
+          <ul>
+            <li>It can call functions that do not exist, or use names that are not bound.</li>
+            <li>It can give a different program each time you ask.</li>
+            <li>Nothing checks the result until you run it yourself.</li>
+          </ul>
+        </div>
+        <div class="ours">
+          <h3>A model that only chooses</h3>
+          <ul>
+            <li>Code lists the legal options for each slot. The model picks one.</li>
+            <li>Invented functions, unbound names and wrong arity cannot appear.</li>
+            <li>Every program runs against the tests. Tests decide if it is correct, not the model.</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <section id="concept">
+      <h2>Every slot is a question with only legal answers</h2>
+      <div class="concept">
+        <div class="prose">
+          <p>A program is plain Clojure data. An empty slot is a hole. For each hole, ordinary
+            code works out what may go there: the names in scope, the kind of value the slot
+            needs, and whether it sits in tail position. The model sees the spec, the tests and
+            the partial program, and picks one option.</p>
+          <p>Because the rules live in code, they hold for every program. A Lean 4 model of the
+            generator proves them:</p>
+          <ul class="guarantees">
+            <li>Every name the program uses is bound.</li>
+            <li><code>recur</code> appears only in tail position, with the right number of arguments.</li>
+            <li>Every function is called with the right number of arguments.</li>
+          </ul>
+        </div>
+        <div class="slot" aria-label="Example of one slot">
+          <pre>(defn factorial [n]
+  (if <span class="hole-now" aria-label="hole"></span> <span class="hole"></span> <span class="hole"></span>))</pre>
+          <p class="note">This slot needs a true or false value. The sheet offers 30 options,
+            such as <code>(zero? _)</code>, <code>(&lt;= _ _)</code> and <code>(empty? _)</code>.
+            A collection is never offered where a number goes, and a name that is not in scope
+            is never offered at all.</p>
+        </div>
+      </div>
+    </section>
+
+    <section id="solution">
+      <h2>When the tests fail, the search repairs the program</h2>
+      <ol class="loop">
+        <li><div><h3>Read the tests</h3><p>The <code>(= ...)</code> forms in the spec become
+          tests. They also fix the function's name, its arity and the kind of each parameter.</p></div></li>
+        <li><div><h3>Build</h3><p>Holes are filled left to right, one question each, as in the
+          sheet above.</p></div></li>
+        <li><div><h3>Test</h3><p>The finished program runs against every test in a separate
+          process with a time limit, so a program that never stops cannot hang the search.</p></div></li>
+        <li><div><h3>Trace and score</h3><p>Each test runs again with a spy around every chosen
+          subtree. The model rates each subtree from wrong to correct, and it sees what the
+          subtree computed on the passing and the failing tests.</p></div></li>
+        <li><div><h3>Edit</h3><p>Suspect subtrees get edits: the next-best option, a swap of two
+          arguments, or a wrap that keeps the half-right code and adds the missing part.</p></div></li>
+        <li><div><h3>Search</h3><p>Edits are tried in order of probability times suspicion. An
+          edit rebuilds only its own subtree, and every other choice is replayed. The first
+          program also gets a few restarts: a close runner-up at one decision, with every later
+          slot asked again, so the search can try a different shape.</p></div></li>
+      </ol>
+      <div class="edit" aria-label="Example of a wrap edit">
+        <div><p class="lbl">Tests fail for fib</p><pre>(fib (- n 1))</pre></div>
+        <div class="arrow" aria-hidden="true">wrap in (+ ...)</div>
+        <div><p class="lbl">One edit later</p><pre>(+ (fib (- n 1))
+   (fib (- n 2)))</pre></div>
+      </div>
+    </section>
+
+    <section id="results">
+      <h2>What it does today</h2>
+      <p class="lede" style="margin-top:16px">Two live runs of the latest version with the Jev
+        model, on two sets of specs. The model's answers change between runs, so results can differ.</p>
+      <table>
+        <thead><tr><th>Spec set</th><th>Passed</th><th>API calls per run</th></tr></thead>
+        <tbody>
+          <tr><td>Basic: factorial, fib, reverse, clamp and 11 more</td><td class="num">15 of 15</td><td class="num">142 to 218</td></tr>
+          <tr><td>Hard: gcd, take-n, dot product, prime? and 10 more</td><td class="num">11 of 14</td><td class="num">443 to 580</td></tr>
+        </tbody>
+      </table>
+      <div class="limits">
+        <div><h3>Small language</h3><p>About 36 core functions and the forms <code>defn fn let
+          loop recur if when cond if-let do</code>. No maps, destructuring or Java interop yet.</p></div>
+        <div><h3>Weak tests let wrong programs pass</h3><p>With only <code>(= 55 (fib 10))</code>,
+          the search once returned the sum 1 + 2 + … + n. Specs need tests that rule out shortcuts.</p></div>
+        <div><h3>Answers vary between runs</h3><p>When two options are close, the same spec can
+          pass in one run and fail in the next.</p></div>
+        <div><h3>Finding the wrong part is hard</h3><p>Most failures happen when the model rates
+          the broken subtree as plausible, so the search never edits it.</p></div>
+      </div>
+    </section>
+
+    <section id="try">
+      <h2>Try it</h2>
+      <p class="prose" style="margin-top:16px">You need the Clojure CLI and Babashka. Without an
+        API key, the same search runs with a simple offline policy.</p>
+<pre class="cmd">git clone https://github.com/esshka/clj-synth.git
+cd clj-synth
+export JEV_API_KEY=...        # optional
+clojure -M:run "write a recursive factorial of n (= 120 (factorial 5)) (= 1 (factorial 0))"</pre>
+    </section>
+  </main>
+
+  <footer>cljjev is a research project. It uses Jev from
+    <a href="https://typesafe.ai">TypeSafe</a> as the model.</footer>
+</div>
+
+<script>
+// Recorded live run: each step is the partial program, the hole's role, the option count,
+// and the top four options as [key, description, probability]. The first option was chosen.
+const STEPS = [{"partial": "(defn factorial __HOLE__\n  __)", "hint": "defn params", "n": 8, "top": [["[n]", "parameters [n]: in (factorial 5), n = 5", 1.0], ["[a]", "parameters [a]: in (factorial 5), a = 5", 0.0], ["[xs]", "parameters [xs]: in (factorial 5), xs = 5", 0.0], ["[x]", "parameters [x]: in (factorial 5), x = 5", 0.0]]}, {"partial": "(defn factorial [n]\n  __HOLE__)", "hint": "defn body", "n": 58, "top": [["if", "(if test then else) the value of then when test is true, else the value of else", 0.82], ["call:factorial", "(factorial _) call `factorial`, the function being defined", 0.09], ["loop", "(loop [name init ...] body) bind names and start a target for recur", 0.04], ["*", "(* a b) a times b", 0.01]]}, {"partial": "(defn factorial [n]\n  (if __HOLE__ __ __))", "hint": "if test", "n": 30, "top": [["zero?", "(zero? x) true when x is 0", 0.65], ["<=", "(<= a b) true when a is at most b, e.g. (<= n 1) means n <= 1", 0.13], ["<", "(< a b) true when a is less than b, e.g. (< n 2) means n < 2", 0.09], [">", "(> a b) true when a is greater than b, e.g. (> n 0) means n > 0", 0.08]]}, {"partial": "(defn factorial [n]\n  (if (zero? __HOLE__) __ __))", "hint": "zero? x", "n": 30, "top": [["local:n", "the local `n`, a number", 0.96], ["lit:0", "the literal 0", 0.02], ["call:factorial", "(factorial _) call `factorial`, the function being defined", 0.01], ["lit:1", "the literal 1", 0.01]]}, {"partial": "(defn factorial [n]\n  (if (zero? n) __HOLE__ __))", "hint": "if then", "n": 59, "top": [["lit:1", "the literal 1", 0.97], ["*", "(* a b) a times b", 0.02], ["call:factorial", "(factorial _) call `factorial`, the function being defined", 0.01], ["map", "(map f coll) f applied to every item of coll", 0.0]]}, {"partial": "(defn factorial [n]\n  (if (zero? n) 1 __HOLE__))", "hint": "if else", "n": 59, "top": [["*", "(* a b) a times b", 0.64], ["call:factorial", "(factorial _) call `factorial`, the function being defined", 0.24], ["if", "(if test then else) the value of then when test is true, else the value of else", 0.08], ["recur", "(recur _) jump back to the enclosing loop/fn with 1 new value(s)", 0.02]]}, {"partial": "(defn factorial [n]\n  (if (zero? n) 1 (* __HOLE__ __)))", "hint": "* a", "n": 30, "top": [["local:n", "the local `n`, a number", 0.68], ["call:factorial", "(factorial _) call `factorial`, the function being defined", 0.23], ["*", "(* a b) a times b", 0.04], ["dec", "(dec x) x minus one", 0.03]]}, {"partial": "(defn factorial [n]\n  (if (zero? n) 1 (* n __HOLE__)))", "hint": "* b", "n": 30, "top": [["call:factorial", "(factorial _) call `factorial`, the function being defined", 0.89], ["dec", "(dec x) x minus one", 0.06], ["-", "(- a b) a minus b, e.g. (- n 2) is two less than n", 0.04], ["*", "(* a b) a times b", 0.01]]}, {"partial": "(defn factorial [n]\n  (if (zero? n) 1 (* n (factorial __HOLE__))))", "hint": "factorial arg 1", "n": 58, "top": [["dec", "(dec x) x minus one", 0.8], ["-", "(- a b) a minus b, e.g. (- n 2) is two less than n", 0.16], ["local:n", "the local `n`, a number", 0.02], ["call:factorial", "(factorial _) call `factorial`, the function being defined", 0.01]]}, {"partial": "(defn factorial [n]\n  (if (zero? n) 1 (* n (factorial (dec __HOLE__)))))", "hint": "dec x", "n": 30, "top": [["local:n", "the local `n`, a number", 0.99], ["dec", "(dec x) x minus one", 0.01], ["call:factorial", "(factorial _) call `factorial`, the function being defined", 0.0], ["loop", "(loop [name init ...] body) bind names and start a target for recur", 0.0]]}];
+const FINAL = "(defn factorial [n]\n  (if (zero? n) 1 (* n (factorial (dec n)))))";
+
+const $ = id => document.getElementById(id);
+const esc = s => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+const reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+function label(key) {
+  if (key.startsWith("local:")) return key.slice(6);
+  if (key.startsWith("lit:")) return key.slice(4);
+  if (key.startsWith("call:")) return "(" + key.slice(5) + " _)";
+  if (key.startsWith("[")) return key;
+  return "(" + key + " _)";
+}
+
+function renderProgram(text) {
+  $("program").innerHTML = esc(text)
+    .replace("__HOLE__", '<span class="hole-now" aria-label="current hole"></span>')
+    .replace(/__/g, '<span class="hole"></span>');
+}
+
+function renderQuestion(i, chosen) {
+  const s = STEPS[i];
+  $("qcount").textContent = "Question " + (i + 1) + " of " + STEPS.length;
+  $("progress").textContent = "";
+  const rows = s.top.map(([key, desc, p], k) => `
+    <li class="opt${chosen && k === 0 ? " chosen" : ""}">
+      <span class="bubble" aria-hidden="true"></span>
+      <span class="code">${esc(label(key))}</span>
+      <span class="pct">${Math.round(p * 100)}%</span>
+      <span class="bar" aria-hidden="true"><i style="width:${Math.max(p * 100, 0.5)}%"></i></span>
+      <span class="desc">${esc(desc)}</span>
+    </li>`).join("");
+  $("question").innerHTML = `
+    <p class="qtitle">Which option fills the <code>${esc(s.hint)}</code> slot?</p>
+    <p class="qsub">${s.n} legal options on the sheet</p>
+    <ul class="opts">${rows}</ul>
+    <p class="more">${s.n - s.top.length} more legal options not shown</p>`;
+}
+
+function renderDone() {
+  renderProgram(FINAL);
+  $("qcount").textContent = "Done";
+  $("progress").textContent = "10 questions, 10 API calls";
+  document.querySelectorAll("[data-t]").forEach(el => { el.textContent = "pass"; el.className = "st ok"; });
+  $("question").innerHTML = `
+    <p class="qtitle">The first program passes both tests.</p>
+    <p class="done-note">The model never wrote a character of code. It answered ten questions,
+      and code assembled the program from the answers.</p>`;
+}
+
+// state: which step, and whether its answer is shown
+let i = 0, answered = false, timer = null, playing = !reduced;
+
+function resetTests() {
+  document.querySelectorAll("[data-t]").forEach(el => { el.textContent = "—"; el.className = "st"; });
+}
+
+// the program once step i is answered: the next partial, its hole not yet asked
+function afterAnswer() {
+  return STEPS[i + 1] ? STEPS[i + 1].partial.replace("__HOLE__", "__") : FINAL;
+}
+
+function show() {
+  if (i >= STEPS.length) return renderDone();
+  renderQuestion(i, answered);
+  renderProgram(answered ? afterAnswer() : STEPS[i].partial);
+}
+
+function advance() {
+  if (i >= STEPS.length) return;
+  if (answered) {
+    answered = false; i += 1; show();
+    if (i >= STEPS.length) stop();
+    return;
+  }
+  answered = true;
+  // mark the bubble already on screen, so its fill animates
+  document.querySelector(".opt").classList.add("chosen");
+  renderProgram(afterAnswer());
+}
+
+function stop() {
+  playing = false; clearInterval(timer); timer = null;
+  $("play").textContent = i >= STEPS.length ? "Play again" : "Play";
+  $("step").disabled = i >= STEPS.length;
+}
+function play() {
+  if (i >= STEPS.length) restart();
+  playing = true; $("play").textContent = "Pause";
+  clearInterval(timer); timer = setInterval(advance, 1100);
+}
+function restart() { i = 0; answered = false; $("step").disabled = false; resetTests(); show(); }
+
+$("play").onclick = () => (playing ? stop() : play());
+$("step").onclick = () => { stop(); advance(); };
+$("restart").onclick = () => { stop(); restart(); };
+
+restart();
+if (playing) play(); else stop();
+</script>
+</body>
+</html>

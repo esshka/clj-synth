@@ -58,6 +58,10 @@
 (def ^:private depth-decay 0.5)
 ;; ponytail: more failed programs mostly distract Jev; raise only if a benchmark says so
 (def ^:private earlier-shown 4)
+(def ^:private restart-prefix "restart:")
+;; runner-up p / chosen p; below this the first choice was clear
+(def ^:private restart-ratio 0.2)
+(def ^:private restart-top 4)
 
 (def default-limits
   {:max-depth 8 ; 6 left (+ (* 3 x) 1) unreachable inside collatz's loop/recur/if
@@ -162,6 +166,12 @@
         (fail (str "answer " (pr-str choice) " is not one of the offered options")))
       {:path path :hole hole :choice choice :probs (get answer "probabilities")})))
 
+(defn- min-steps
+  "Returns the fewest decisions that close every hole in node: a leaf each, and one more
+  for the init a bindings vector opens."
+  [node]
+  (reduce + (for [[_ h] (holes node)] (if (= (:kind h) "bindings") 2 1))))
+
 (defn build
   "Fills holes from the root. A decision in plan (a map of path to decision) is replayed
   while it is still legal; otherwise Jev is asked, and log sees the new decision.
@@ -170,25 +180,24 @@
   (loop [tree (->hole "top" "top")
          made []]
     (if-let [[path hole] (first (holes tree))]
-      (do
-        (when (>= (count made) (:max-steps limits))
-          (fail (str "max_steps=" (:max-steps limits) " reached")))
-        (let [env (context tree path)
-              ;; near the step budget only leaves stay legal, so the tree closes
-              depth (if (>= (+ (count made) (count (holes tree))) (:max-steps limits))
-                      -1
-                      (:max-depth limits))
-              options (legal hole env pools depth)
-              planned (get plan path)
-              decision (if (and planned
-                                (= (:hole planned) hole)
-                                (contains? options (:choice planned)))
-                         planned
-                         (doto (decide ask (state-of pools tree path hole env feedback)
-                                       options path hole)
-                           log))]
-          (recur (put-at tree path (second (get options (:choice decision))))
-                 (conj made decision))))
+      (let [env (context tree path)
+            ;; an option must leave enough steps to close this hole and every other one
+            room (- (:max-steps limits) (count made) (- (min-steps tree) (min-steps hole)))
+            options (ordered (for [[_ [_ node] :as o] (legal hole env pools (:max-depth limits))
+                                   :when (< (min-steps node) room)]
+                               o))
+            _ (when (empty? options)
+                (fail (str "max_steps=" (:max-steps limits) " reached")))
+            planned (get plan path)
+            decision (if (and planned
+                              (= (:hole planned) hole)
+                              (contains? options (:choice planned)))
+                       planned
+                       (doto (decide ask (state-of pools tree path hole env feedback)
+                                     options path hole)
+                         log))]
+        (recur (put-at tree path (second (get options (:choice decision))))
+               (conj made decision)))
       [tree made])))
 
 ;;; Score
@@ -362,6 +371,23 @@
            :when (not (or (within? x y) (within? y x)))]
        [(+ p1 p2) [[i a1] [j a2]]]))))
 
+(defn restart-edits
+  "Returns [priority index alt] for the first program: a decision switched to a close
+  runner-up, with every later hole asked again. Local edits cannot leave the first
+  program's shape: (reduce (fn ...) 0 xs) never becomes (reduce + 0 (map * xs ys))."
+  [attempt]
+  (let [decisions (:decisions attempt)
+        n (count decisions)]
+    (->> (for [[i d] (map-indexed vector decisions)
+               :let [p0 (get (:probs d) (:choice d) 0)]
+               :when (pos? p0)
+               [k p] (:probs d)
+               :when (and (not= k (:choice d)) (>= (/ p p0) restart-ratio))]
+           ;; earlier decisions rebuild more of the program
+           [(+ (Math/log (/ p p0)) (Math/log (/ (- n i) n))) i (str restart-prefix k)])
+         (sort #(compare %2 %1))
+         (take restart-top))))
+
 ;;; Plans
 
 (defn- mirror
@@ -406,11 +432,18 @@
 
 (defn make-plan
   "Returns the decisions of parent with every change [index alt] applied, as a map of
-  path to decision. The changes touch disjoint subtrees."
+  path to decision. The changes touch disjoint subtrees. A restart keeps only the
+  decisions before it, so every later hole is asked again."
   [parent changes]
-  (reduce (fn [plan [i alt]] (apply-edit plan (nth (:decisions parent) i) alt))
-          (into {} (map (juxt :path identity)) (:decisions parent))
-          changes))
+  (let [decisions (:decisions parent)
+        [[i alt]] changes]
+    (if (str/starts-with? alt restart-prefix)
+      (let [d (nth decisions i)]
+        (-> (into {} (map (juxt :path identity)) (take i decisions))
+            (assoc (:path d) (assoc d :choice (subs alt (count restart-prefix))))))
+      (reduce (fn [plan [i alt]] (apply-edit plan (nth decisions i) alt))
+              (into {} (map (juxt :path identity)) decisions)
+              changes))))
 
 (defn- describe [parent changes]
   (str/join " + " (for [[i alt] changes
@@ -420,11 +453,13 @@
                            (= alt swap-alt) (str "swap arguments of " (:choice d))
                            (str/starts-with? alt wrap-prefix)
                            (str "wrap " (:choice d) " in (" (subs alt (count wrap-prefix)) " ...)")
+                           (str/starts-with? alt restart-prefix)
+                           (str "restart " (:choice d) " -> " (subs alt (count restart-prefix)))
                            :else (str (:choice d) " -> " alt))))))
 
 ;;; Search
 ;;
-;; The search state is one map: the plan to build next, the attempts so far, and two
+;; The search state is one map: the plan to build next, the attempts so far, and three
 ;; heaps of edits, sorted maps keyed by [-priority tick].
 
 (defn- run-plan
@@ -460,20 +495,110 @@
           search
           entries))
 
+;;; Pick flow: Jev chooses the next change among concrete ones code can make
+
+;; a Choice takes at most 255 options
+(def ^:private pick-max 255)
+
+(def ^:private pick-question
+  (str "Which change to `program` most likely makes it pass every test in `test_results`? "
+       "`parts` shows what parts of `program` computed on each test, and `tried` lists the "
+       "programs already tested, each with the change that made it. `__` marks a part that is "
+       "chosen again after the change."))
+
+(defn- option-node
+  "Returns the node option k puts in decision d's slot of tree, or nil if k is not legal."
+  [tree d pools limits k]
+  (second (get (legal (:hole d) (context tree (:path d)) pools (:max-depth limits)) k)))
+
+(defn- preview
+  "Returns decision d's subtree replaced by new, shown with its enclosing form."
+  [tree d new]
+  (let [path (:path d)]
+    (str "`" (get-in d [:hole :hint]) "`: " (flat (node-at tree path)) " becomes " (flat new)
+         (when (seq path)
+           (str " in " (flat (put-at (node-at tree (pop path)) [(peek path)] new)))))))
+
+(defn pick-candidates
+  "Returns [[change text] ...], the changes code can make to attempt: restarts, the
+  decisions' runner-ups, argument swaps and wraps, each shown as the code it leads to."
+  [tree attempt pools limits]
+  (let [ds (map-indexed vector (:decisions attempt))
+        at #(node-at tree (:path %))]
+    (->> (concat
+          (for [[_ i alt] (restart-edits attempt)
+                :let [d (nth (:decisions attempt) i)
+                      new (option-node tree d pools limits (subs alt (count restart-prefix)))]
+                :when new]
+            [[i alt] (str (preview tree d new) ", then every later part is chosen again")])
+          (for [[i d] ds
+                [_ k] (->> (for [[k p] (:probs d)
+                                 :when (and (not= k (:choice d)) (>= p (:min-p limits)))]
+                             [p k])
+                           (sort #(compare %2 %1))
+                           (take (:alternatives limits)))
+                :let [new (option-node tree d pools limits k)]
+                :when new]
+            [[i k] (preview tree d new)])
+          (for [[i d] ds
+                :when (swappable (:choice d))
+                :let [[op a b] (at d)]]
+            [[i swap-alt] (preview tree d (list op b a))])
+          (for [[i d] ds
+                :when (seq (:path d))
+                op (wrappers d)]
+            [[i (str wrap-prefix op)]
+             (preview tree d (if (= op "not")
+                               (list 'not (at d))
+                               (list (symbol op) (at d) (->hole "any" ""))))]))
+         (take pick-max))))
+
+(defn- tried [search]
+  (vec (for [a (:attempts search)]
+         {:change (or (:edit a) "first program")
+          :program (:code a)
+          :passed (str (score a) " of " (count (:results a)) " tests")})))
+
+(defn- pick-edits
+  "Returns [priority changes] for the candidates Jev rates likeliest to fix attempt."
+  [ask pools limits search tree attempt values]
+  (let [results (:results attempt)
+        cands (pick-candidates tree attempt pools limits)
+        ids (map #(str "c" %) (range (count cands)))
+        state (assoc (review pools tree results)
+                     :parts (vec (for [[i d] (map-indexed vector (:decisions attempt))
+                                       :when (contains? values i)]
+                                   (about tree d results (values i))))
+                     :tried (tried search))
+        question {:type "choice" :instructions pick-question
+                  :criteria (ordered (map vector ids (map second cands)))}
+        probs (get-in (ask state {"pick" question}) ["pick" "probabilities"])]
+    (->> (for [[id [change _]] (map vector ids cands)
+               :let [p (get probs id 0.0)]
+               :when (pos? p)]
+           [(+ (Math/log p) (decay attempt)) [change]])
+         (sort #(compare %2 %1))
+         (take (:tries limits)))))
+
 (defn- enqueue
   "Returns search with the edits of the failed attempt added to its heaps."
-  [{:keys [ask pools limits trace]} search tree decisions attempt]
+  [{:keys [ask pools limits trace flow]} search tree decisions attempt]
   (let [start (:start search)
         results (:results attempt)
         values (traced tree decisions results trace)
-        fit (score-fits ask pools tree decisions results values)
-        found (vec (concat (single-edits attempt fit start limits)
-                           (wrap-edits ask pools tree attempt fit start values)))
         ;; kept for the feedback a rebuild of this attempt gets
-        attempt (assoc attempt :tree tree :values values)]
-    (-> search
-        (push :singles attempt (for [[p i alt] found] [p [[i alt]]]))
-        (push :pairs attempt (pair-edits found attempt)))))
+        kept (assoc attempt :tree tree :values values)]
+    (if (= flow :pick)
+      (push search :singles kept (pick-edits ask pools limits search tree attempt values))
+      (let [fit (score-fits ask pools tree decisions results values)
+            found (vec (concat (single-edits attempt fit start limits)
+                               (wrap-edits ask pools tree attempt fit start values)))]
+        (cond-> (-> search
+                    (push :singles kept (for [[p i alt] found] [p [[i alt]]]))
+                    (push :pairs kept (pair-edits found attempt)))
+          ;; only the first program: restarts of restarts would crowd out repairs
+          (zero? (:depth attempt))
+          (push :restarts kept (for [[p i alt] (restart-edits attempt)] [p [[i alt]]])))))))
 
 (defn- feedback
   "Returns what a rebuild is told about its parent: the test results, the code the
@@ -492,10 +617,14 @@
       (seq earlier) (assoc :earlier earlier))))
 
 (defn- pop-edit
-  "Returns search set to build the next edit, or nil when no edit is left. Pairs rank
-  below singles (p1 x p2 < p1), so they get every other pop instead of their rank."
-  [{:keys [pops singles pairs] :as search}]
-  (let [heap (if (and (seq pairs) (or (odd? pops) (empty? singles))) :pairs :singles)]
+  "Returns search set to build the next edit, or nil when no edit is left. Pairs and
+  restarts rank below singles, so the heaps take turns instead of competing on rank."
+  [{:keys [pops] :as search}]
+  (let [turns (case (mod pops 3)
+                0 [:singles :pairs :restarts]
+                1 [:pairs :singles :restarts]
+                2 [:restarts :singles :pairs])
+        heap (or (first (filter #(seq (get search %)) turns)) :singles)]
     (when-let [[k [parent changes]] (first (get search heap))]
       (-> search
           (update heap dissoc k)
@@ -511,23 +640,26 @@
   costs no try, and a replayed decision costs no API call.
 
   Options: :tests (extra test forms), :limits, and the effects :run (tests),
-  :trace (traced values), :log (each new decision), :log-attempt (each attempt)."
-  [spec policy & {:keys [tests limits run log log-attempt trace]
+  :trace (traced values), :log (each new decision), :log-attempt (each attempt), and
+  :flow, :score (Score finds the bug, a formula ranks edits) or :pick (Jev picks the edit)."
+  [spec policy & {:keys [tests limits run log log-attempt trace flow]
                   :or {tests []
                        limits default-limits
                        run run-tests
                        log (fn [_])
                        log-attempt (fn [_])
-                       trace trace-values}}]
+                       trace trace-values
+                       flow :score}}]
   (let [calls (atom 0)
         ctx {:ask (asker policy calls)
              :pools (extract spec tests)
              :limits limits
              :run run
              :log log
-             :trace trace}
+             :trace trace
+             :flow flow}
         done (fn [search] {:attempts (:attempts search) :calls @calls})]
-    (loop [search {:pops 0 :singles (sorted-map) :pairs (sorted-map) :tick 0
+    (loop [search {:pops 0 :singles (sorted-map) :pairs (sorted-map) :restarts (sorted-map) :tick 0
                    :attempts [] :seen #{}
                    :plan {} :start 0 :edit nil :feedback nil :depth 0}]
       (if (>= (:pops search) (* 4 (:tries limits)))

@@ -33,6 +33,7 @@
       :multi true :default [] :update-fn conj]
      [nil "--mock" "use the local mock policy, not the API"]
      [nil "--trace" "print every Choice to stderr"]
+     [nil "--pick" "let Jev pick each repair among concrete changes (experimental)"]
      [nil "--model MODEL" "Jev model" :default "jev-latest"]
      (limit "--max-depth N" "deepest nesting for compound forms" :max-depth)
      (limit "--max-steps N" "decisions per program" :max-steps)
@@ -100,7 +101,8 @@
                          :limits (merge g/default-limits
                                         (select-keys options [:max-depth :max-steps :tries]))
                          :log (if (:trace options) log-decision (fn [_]))
-                         :log-attempt log-attempt)
+                         :log-attempt log-attempt
+                         :flow (if (:pick options) :pick :score))
                 (:out options))
         (catch clojure.lang.ExceptionInfo e
           (if (or (g/generation-error? e) (jev/jev-error? e))

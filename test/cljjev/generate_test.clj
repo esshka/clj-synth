@@ -4,7 +4,7 @@
             [cljjev.policy :refer [mock-policy]]
             [cljjev.test-support :refer [at attempt build fact-keys fact-pools fact-spec limits plan
                                          script short-keys wrap-keys]]
-            [cljjev.tree :refer [node-at]]
+            [cljjev.tree :refer [holes node-at]]
             [cljjev.validate :refer [runtime]]))
 
 (deftest scripted-choices-build-factorial
@@ -57,6 +57,24 @@
     (is (= '(not (<= n 1)) (node-at tree [3 1])))
     (is (not (some #{"not"} (g/wrappers (nth parent (at "* b"))))))))
 
+(deftest restart-asks-every-later-hole-again
+  (let [[_ parent] (build fact-keys)
+        ;; `if then` was 1; a plain edit would replay it, a restart asks it again
+        [tree _] (build ["local:n" "lit:0" "lit:2" "*" "local:n" "call:factorial" "dec" "local:n"]
+                        (plan parent [((at parent) "if test") "restart:="]))]
+    (is (= '(if (= n 0) 2 (* n (factorial (dec n)))) (node-at tree [3])))))
+
+(deftest restarts-come-from-close-runners-up-first-decisions-first
+  (let [d (fn [path choice probs] {:path path :hole {:hint "h"} :choice choice :probs probs})
+        decisions [(d [3] "if" {"if" 0.3 "cond" 0.25 "let" 0.01})
+                   (d [3 1] "<=" {"<=" 0.9 "<" 0.1})
+                   (d [3 2] "lit:1" {"lit:1" 0.5 "lit:0" 0.45})]
+        restarts (g/restart-edits (attempt decisions))]
+    ;; `let` and `<` are far behind their winners
+    (is (= #{[0 "restart:cond"] [2 "restart:lit:0"]} (set (map rest restarts))))
+    ;; the same ratio early rebuilds more, so it ranks first
+    (is (= [0 "restart:cond"] (rest (first restarts))))))
+
 (deftest suspicious-nodes-are-edited-first
   (let [[_ parent] (build fact-keys)
         ;; every subtree is correct except `dec x`
@@ -68,6 +86,28 @@
 (deftest mock-search-finds-passing-factorial
   (when (runtime)
     (let [out (g/solve fact-spec (mock-policy))]
+      (is (g/passed? out) (g/source (g/best out))))))
+
+(deftest pick-candidates-show-the-code-each-change-leads-to
+  (let [[tree parent] (build short-keys)
+        at (at parent)
+        texts (into {} (g/pick-candidates tree (attempt parent) fact-pools limits))]
+    (is (= "`if test`: (<= n 1) becomes (<= 1 n) in (if (<= 1 n) 1 (* n 1))"
+           (texts [(at "if test") "swap"])))
+    (is (= "`* b`: 1 becomes 0 in (* n 0)" (texts [(at "* b") "lit:0"])))
+    (is (= "`* b`: 1 becomes (+ 1 __) in (* n (+ 1 __))" (texts [(at "* b") "wrap:+"])))))
+
+(deftest every-step-budget-closes-the-program
+  ;; a compound form chosen just before the budget used to open more holes than it had left
+  (doseq [n (range 4 21)]
+    (let [[tree made] (g/build (g/asker (mock-policy) (atom 0)) fact-pools {}
+                               (assoc limits :max-steps n) (fn [_]) nil)]
+      (is (<= (count made) n))
+      (is (empty? (holes tree)) (str "max-steps " n)))))
+
+(deftest mock-pick-search-finds-passing-factorial
+  (when (runtime)
+    (let [out (g/solve fact-spec (mock-policy) :flow :pick)]
       (is (g/passed? out) (g/source (g/best out))))))
 
 (defn- recorder

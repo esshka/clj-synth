@@ -1,6 +1,6 @@
 (ns cljjev.bench
-  "Benchmark: clojure -M:bench [--mock] [basic|hard] runs a spec set and reports the
-  pass rate and API calls."
+  "Benchmark: clojure -M:bench [--mock] [pick] [basic|hard|held] runs a spec set and reports
+  the pass rate and API calls. pick runs the :pick search flow."
   (:require [clojure.string :as str]
             [cljjev.cli :refer [api-key]]
             [cljjev.generate :as g]
@@ -48,9 +48,26 @@
         "(= 7 (collatz 3)) (= 5 (collatz 5)) (= 16 (collatz 7))")
    "sum of the odd numbers in xs (= 4 (sum-odd [1 2 3])) (= 0 (sum-odd [2]))"])
 
+;; never tuned on: a change that helps only basic and hard is fitting those sets
+(def held
+  ["product of the numbers in xs (= 24 (product [1 2 3 4])) (= 1 (product []))"
+   "smallest number in xs (= 1 (smallest [3 1 2])) (= -4 (smallest [-4 0 5]))"
+   "count the negative numbers in xs (= 2 (count-neg [-1 2 -3])) (= 0 (count-neg [1]))"
+   "sum of the numbers from 1 to n (= 15 (sum-to 5)) (= 0 (sum-to 0)) (= 1 (sum-to 1))"
+   "double every number in xs (= [2 4] (doubled [1 2])) (= [] (doubled []))"
+   (str "is every number in xs even "
+        "(= true (all-even? [2 4])) (= false (all-even? [2 3])) (= true (all-even? []))")
+   "number of decimal digits of n (= 3 (digits 123)) (= 1 (digits 7)) (= 2 (digits 10))"
+   (str "drop the first n items of xs "
+        "(= [3] (drop-n 2 [1 2 3])) (= [1 2] (drop-n 0 [1 2])) (= [] (drop-n 5 [1]))")
+   "remove the zeros from xs (= [1 2] (no-zeros [0 1 0 2])) (= [] (no-zeros [0]))"
+   "sum of the squares from 1 to n (= 14 (square-sum 3)) (= 0 (square-sum 0))"
+   "the second item of xs (= 2 (second-item [1 2 3])) (= 9 (second-item [8 9]))"
+   "largest minus smallest number in xs (= 4 (spread [3 1 5])) (= 0 (spread [7]))"])
+
 (defn- run-spec
   "Solves spec with a fresh policy and prints one line. Returns [passed? api-calls]."
-  [spec mock]
+  [spec mock flow]
   (let [calls (atom 0)
         inner (if mock (mock-policy) (jev/client (api-key)))
         policy (fn [state questions]
@@ -59,7 +76,7 @@
         start (System/nanoTime)
         ;; a crash is a failed spec; keep benchmarking
         [ok code] (try
-                    (let [out (g/solve spec policy)
+                    (let [out (g/solve spec policy :flow flow)
                           code (str/split (str/trim (g/source (g/best out))) #"\s+")]
                       [(g/passed? out) (str/join " " (drop 2 code))])
                     (catch Exception e
@@ -73,8 +90,10 @@
   (let [argv (set args)
         specs (cond (argv "hard") hard
                     (argv "basic") basic
+                    (argv "held") held
                     :else (concat basic hard))
-        results (mapv #(run-spec % (argv "--mock")) specs)]
+        flow (if (argv "pick") :pick :score)
+        results (mapv #(run-spec % (argv "--mock") flow) specs)]
     (println (str "\n" (count (filter first results)) "/" (count specs) " passed, "
                   (reduce + (map second results)) " API calls"))
     (shutdown-agents)))
