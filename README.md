@@ -8,6 +8,8 @@ unfilled slot in the program it selects one option from a list that contains onl
 resulting program is executed against the tests, and a guided search revises the model's decisions
 until the tests pass or the budget is spent.
 
+Project page: https://esshka.github.io/clj-synth/
+
 ```bash
 clojure -M:run "write a recursive factorial of n (= 120 (factorial 5)) (= 1 (factorial 0))"
 ```
