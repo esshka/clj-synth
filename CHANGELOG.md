@@ -27,6 +27,19 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- Local repair (`src/cljjev/local.clj`, `mutate.clj`, `batch.clj`): a failed program's small legal
+  changes (a new subtree of up to three decisions, another operator, swapped arguments, a wrap) are
+  ranked by Jev's build probabilities and up to 6000 run at once with no API call; one `Choice`
+  then asks Jev which passing program implements the spec, or none. It found 18 of the passing
+  programs over six live runs, among them `take-n` and `collatz`. Two runs per set, scored with the
+  hidden checks: basic 14 and 14 of 15 before and after (186 and 180 calls before, 140 and 138
+  after), hard 10 and 13 of 14 before, 11 and 11 after (558 and 460 calls before, 378 and 389
+  after), held-out 11 and 11 of 12 before and after (330 and 334 calls before, 375 and 325 after).
+- Hidden checks in the benchmark (`checks` in `src/cljjev/bench.clj`): a program passes only if it
+  also passes tests the search never sees; one that fits only the spec's tests is reported as
+  OVER. Rescored this way, the old code already returned an OVER `power` in both basic runs.
+- `clojure -M:bench --runs N` repeats a set and prints the median and range of passes and API
+  calls; every run is written to `bench/results/<time>-<set>.edn`.
 - Lean 4 model and proofs in `verify/`: every program the generator can build binds all its
   names, places `recur` only in tail position with the right arity, and calls functions with the
   right number of arguments. Run `lake build` in `verify/`.
@@ -43,6 +56,10 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
+- When local repair ran on a program, Jev's edits no longer swap a leaf for a leaf (local repair
+  tested those), and a subtree where one local change brought the program closer to passing is
+  rated wrong whatever Score says. Only a program that passes at least as many tests as the best
+  one so far is repaired, within 30000 local programs per search.
 - Score and keep/replace/wrap questions show what each subtree computed on every test, next to
   that test's result, instead of on the first failing test only. Params and names get no values
   rather than "never evaluated".

@@ -77,17 +77,17 @@
       (finally
         (run! #(.delete ^File %) [path out err dir])))))
 
-(def ^:private probe-template
-  '(println (str MARK (try BODY
-                           (catch Throwable e
-                             (str "ERROR " (or (ex-message e) (.getName (class e)))))))))
+(def ^:private verdict-template
+  '(try BODY
+        (catch Throwable e
+          (str "ERROR " (or (ex-message e) (.getName (class e)))))))
 
 (defn- calls? [x]
   (boolean (some seq? (tree-seq branch? seq x))))
 
-(defn- probe
-  "Returns a form that prints one line for test; an (= want got) test also reports
-  both values."
+(defn verdict
+  "Returns a form that evaluates test to \"PASS\", \"FAIL\" or \"ERROR message\"; an
+  (= want got) test fails as \"FAIL expected want, got got\"."
   [test]
   (let [form (first (read-all test))
         body (if (and (= (head form) "=") (= 3 (count form)))
@@ -99,7 +99,12 @@
                           "PASS"
                           (str "FAIL expected " (pr-str want) ", got " (pr-str got)))))
                (list 'if form "PASS" "FAIL"))]
-    (postwalk-replace {'MARK test-mark 'BODY body} probe-template)))
+    (postwalk-replace {'BODY body} verdict-template)))
+
+(defn- probe
+  "Returns a form that prints one line for test."
+  [test]
+  (list 'println (list 'str test-mark (verdict test))))
 
 (defn- lines [s]
   (let [s (str/trim s)]

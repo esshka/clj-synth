@@ -5,8 +5,10 @@
   probability. An attempt is {:code :decisions :results :edit :depth}; results is nil
   when there are no tests or no Clojure runtime."
   (:require [clojure.string :as str]
-            [cljjev.catalog :refer [arg-holes core-returns docs fits? legal ordered]]
+            [cljjev.batch :refer [run-batch]]
+            [cljjev.catalog :refer [arg-holes core-returns docs fits? legal ordered wrap-ops]]
             [cljjev.env :refer [context extract]]
+            [cljjev.local :refer [repair]]
             [cljjev.trace :refer [has-recur? instrument trace-values]]
             [cljjev.tree :refer [->hole flat head holes node-at put-at render]]
             [cljjev.validate :refer [run-tests structure]])
@@ -48,8 +50,6 @@
 (def ^:private swap-prior 0.3)
 (def ^:private swappable #{"-" "/" "<" ">" "<=" ">=" "cons" "conj" "mod" "quot"})
 (def ^:private wrap-prefix "wrap:")
-;; keep a half-right subtree inside a new form
-(def ^:private wrap-ops ["+" "-" "*" "and" "or" "not"])
 ;; the lowest-fit subtrees get one more question, all in one call: keep, replace, or wrap?
 (def ^:private wrap-ask 6)
 ;; pairs are drawn from this many best single edits
@@ -288,6 +288,8 @@
 
 (defn- decay [attempt]
   (* (:depth attempt) (Math/log depth-decay)))
+
+(defn- leaf? [k] (some #(str/starts-with? k %) ["local:" "lit:" "ref:"]))
 
 (defn single-edits
   "Returns [priority index alternative] for the decisions of attempt from start on;
@@ -590,11 +592,16 @@
         kept (assoc attempt :tree tree :values values)]
     (if (= flow :pick)
       (push search :singles kept (pick-edits ask pools limits search tree attempt values))
-      (let [fit (score-fits ask pools tree decisions results values)
+      (let [hot (or (:hot attempt) #{})
+            ;; a local change there brought the program closer to passing: tests, not Score
+            fit (into (score-fits ask pools tree decisions results values)
+                      (for [[i d] (map-indexed vector decisions) :when (hot (:path d))] [i 0.0]))
             found (vec (concat (single-edits attempt fit start limits)
-                               (wrap-edits ask pools tree attempt fit start values)))]
+                               (wrap-edits ask pools tree attempt fit start values)))
+            ;; :hot means local repair ran here, and it tried every leaf in place of every leaf
+            local? (fn [[_ i alt]] (and (:hot attempt) (leaf? alt) (leaf? (:choice (nth decisions i)))))]
         (cond-> (-> search
-                    (push :singles kept (for [[p i alt] found] [p [[i alt]]]))
+                    (push :singles kept (for [[p i alt :as e] found :when (not (local? e))] [p [[i alt]]]))
                     (push :pairs kept (pair-edits found attempt)))
           ;; only the first program: restarts of restarts would crowd out repairs
           (zero? (:depth attempt))
@@ -636,19 +643,21 @@
                  :depth (inc (:depth parent)))))))
 
 (defn solve
-  "Searches for a program meeting spec. Returns {:attempts :calls}. A duplicate program
-  costs no try, and a replayed decision costs no API call.
+  "Searches for a program meeting spec. Returns {:attempts :calls :tested}: tested counts
+  local repair's programs. A duplicate program costs no try, a replayed decision no API call.
 
   Options: :tests (extra test forms), :limits, and the effects :run (tests),
-  :trace (traced values), :log (each new decision), :log-attempt (each attempt), and
-  :flow, :score (Score finds the bug, a formula ranks edits) or :pick (Jev picks the edit)."
-  [spec policy & {:keys [tests limits run log log-attempt trace flow]
+  :trace (traced values), :batch (local repair's runs; nil turns it off), :log (each new
+  decision), :log-attempt (each attempt), and :flow, :score (Score finds the bug, a
+  formula ranks edits) or :pick (Jev picks the edit)."
+  [spec policy & {:keys [tests limits run log log-attempt trace flow batch]
                   :or {tests []
                        limits default-limits
                        run run-tests
                        log (fn [_])
                        log-attempt (fn [_])
                        trace trace-values
+                       batch run-batch
                        flow :score}}]
   (let [calls (atom 0)
         ctx {:ask (asker policy calls)
@@ -657,23 +666,34 @@
              :run run
              :log log
              :trace trace
-             :flow flow}
-        done (fn [search] {:attempts (:attempts search) :calls @calls})]
+             :flow flow
+             :batch batch}
+        done (fn [search] {:attempts (:attempts search) :calls @calls
+                           :tested (count (:tested search))})]
     (loop [search {:pops 0 :singles (sorted-map) :pairs (sorted-map) :restarts (sorted-map) :tick 0
-                   :attempts [] :seen #{}
+                   :attempts [] :seen #{} :tested #{}
                    :plan {} :start 0 :edit nil :feedback nil :depth 0}]
       (if (>= (:pops search) (* 4 (:tries limits)))
         (done search)
         (let [[tree decisions attempt] (run-plan ctx search)
               search (cond-> search
                        attempt (-> (update :attempts conj attempt)
-                                   (update :seen conj (:code attempt))))]
-          (when attempt
-            (log-attempt attempt))
-          (if (and attempt (finished? limits search attempt))
+                                   (update :seen conj (:code attempt))))
+              _ (when attempt (log-attempt attempt))
+              {fix :attempt :keys [tested hot]}
+              ;; best-so-far programs only: worse ones once used up the budget before prime? got close
+              (when (and batch attempt (some (complement :ok) (:results attempt))
+                         (>= (score attempt) (score (best search))))
+                (repair (:ask ctx) batch (:pools ctx) limits tree attempt (:tested search)))
+              search (cond-> search
+                       tested (assoc :tested tested)
+                       fix (update :attempts conj fix))]
+          (when fix (log-attempt fix))
+          (if (and attempt (or fix (finished? limits search attempt)))
             (done search)
             (if-let [next-search (pop-edit (if attempt
-                                             (enqueue ctx search tree decisions attempt)
+                                             (enqueue ctx search tree decisions
+                                                      (assoc attempt :hot hot))
                                              search))]
               (recur next-search)
               (done search))))))))

@@ -1,11 +1,19 @@
 (ns cljjev.bench
-  "Benchmark: clojure -M:bench [--mock] [pick] [basic|hard|held] runs a spec set and reports
-  the pass rate and API calls. pick runs the :pick search flow."
-  (:require [clojure.string :as str]
+  "Benchmark: clojure -M:bench [--mock] [pick] [--runs N] [basic|hard|held] runs a spec set
+  N times and reports the pass rate and API calls of each run, their median and range when
+  N > 1, and writes the runs to bench/results/. pick runs the :pick search flow. A program
+  passes only if it also passes hidden checks the search never sees."
+  (:require [clojure.java.io :as io]
+            [clojure.pprint :refer [pprint]]
+            [clojure.string :as str]
             [cljjev.cli :refer [api-key]]
+            [cljjev.env :refer [extract]]
             [cljjev.generate :as g]
             [cljjev.jev :as jev]
-            [cljjev.policy :refer [mock-policy]]))
+            [cljjev.policy :refer [mock-policy]]
+            [cljjev.validate :refer [run-tests]])
+  (:import (java.time LocalDateTime)
+           (java.time.format DateTimeFormatter)))
 
 (def basic
   ["write a recursive factorial of n (= 120 (factorial 5)) (= 1 (factorial 0))"
@@ -65,8 +73,60 @@
    "the second item of xs (= 2 (second-item [1 2 3])) (= 9 (second-item [8 9]))"
    "largest minus smallest number in xs (= 4 (spread [3 1 5])) (= 0 (spread [7]))"])
 
+;; tests the search never sees: a program that passes the spec's tests but not these only
+;; fits them, like (cons (first xs) (filter even? xs)) for take-n
+(def checks
+  {"factorial" ["(= 6 (factorial 3))" "(= 24 (factorial 4))"]
+   "max2" ["(= 4 (max2 4 4))" "(= -1 (max2 -1 -3))"]
+   "sum-list" ["(= 10 (sum-list [1 2 3 4]))" "(= -2 (sum-list [-2]))"]
+   "squares" ["(= [16 25] (squares [4 5]))" "(= [4] (squares [-2]))"]
+   "size" ["(= 1 (size [5]))" "(= 5 (size [1 1 1 1 1]))"]
+   "fib" ["(= 2 (fib 3))" "(= 13 (fib 7))"]
+   "positives" ["(= [5] (positives [0 5 -2]))" "(= [] (positives []))"]
+   "sum-squares" ["(= 25 (sum-squares [3 4]))" "(= 4 (sum-squares [-2]))"]
+   "power" ["(= 16 (power 2 4))" "(= 27 (power 3 3))" "(= 5 (power 5 1))"]
+   "abs-val" ["(= 0 (abs-val 0))" "(= 10 (abs-val -10))"]
+   "rev" ["(= [2 1] (rev [1 2]))" "(= [9] (rev [9]))"]
+   "final" ["(= 5 (final [4 5]))" "(= 1 (final [3 2 1]))"]
+   "sign" ["(= -1 (sign -1))" "(= 1 (sign 100))"]
+   "first-or-zero" ["(= 9 (first-or-zero [9]))" "(= -1 (first-or-zero [-1 2]))"]
+   "clamp" ["(= 3 (clamp 3 1 4))" "(= 1 (clamp 0 1 4))" "(= 4 (clamp 9 1 4))"]
+   "gcd" ["(= 4 (gcd 8 12))" "(= 7 (gcd 0 7))" "(= 3 (gcd 9 6))"]
+   "largest" ["(= 4 (largest [4]))" "(= 8 (largest [1 8 8 2]))"]
+   "count-evens" ["(= 3 (count-evens [2 4 6]))" "(= 1 (count-evens [0 1]))"]
+   "occurrences" ["(= 3 (occurrences 1 [1 1 1]))" "(= 1 (occurrences 2 [1 2 3]))"]
+   "upto" ["(= [0] (upto 1))" "(= [0 1 2 3 4] (upto 5))"]
+   "take-n" ["(= [1 2 3] (take-n 3 [1 2 3 4]))" "(= [] (take-n 2 []))" "(= [5 6] (take-n 2 [5 6 7]))"]
+   "average" ["(= 3 (average [2 4]))" "(= 0 (average [-1 1]))"]
+   "count-above" ["(= 1 (count-above 0 [-1 1]))" "(= 3 (count-above 1 [2 3 4]))"]
+   "dot" ["(= 11 (dot [1 2] [3 4]))" "(= 6 (dot [2] [3]))"]
+   "item-at" ["(= 2 (item-at [1 2 3] 1))" "(= 7 (item-at [5 6 7] 2))"]
+   "digit-sum" ["(= 10 (digit-sum 55))" "(= 1 (digit-sum 100))" "(= 15 (digit-sum 12345))"]
+   "prime?" ["(= true (prime? 3))" "(= true (prime? 13))" "(= false (prime? 21))" "(= false (prime? 4))"]
+   "collatz" ["(= 2 (collatz 4))" "(= 19 (collatz 9))"]
+   "sum-odd" ["(= 9 (sum-odd [1 3 5]))" "(= 0 (sum-odd []))" "(= 5 (sum-odd [2 5]))"]
+   "product" ["(= 6 (product [2 3]))" "(= 0 (product [5 0]))"]
+   "smallest" ["(= 7 (smallest [7]))" "(= -9 (smallest [1 -9 3]))"]
+   "count-neg" ["(= 0 (count-neg []))" "(= 3 (count-neg [-1 -2 -3]))"]
+   "sum-to" ["(= 3 (sum-to 2))" "(= 55 (sum-to 10))"]
+   "doubled" ["(= [0 -2] (doubled [0 -1]))" "(= [10] (doubled [5]))"]
+   "all-even?" ["(= false (all-even? [1]))" "(= true (all-even? [0 8]))"]
+   "digits" ["(= 4 (digits 1000))" "(= 2 (digits 99))"]
+   "drop-n" ["(= [] (drop-n 1 []))" "(= [2 3] (drop-n 1 [1 2 3]))"]
+   "no-zeros" ["(= [] (no-zeros []))" "(= [3 4] (no-zeros [3 0 4]))"]
+   "square-sum" ["(= 1 (square-sum 1))" "(= 30 (square-sum 4))"]
+   "second-item" ["(= 5 (second-item [4 5 6 7]))" "(= 0 (second-item [1 0]))"]
+   "spread" ["(= 9 (spread [10 1]))" "(= 6 (spread [-3 3 0]))"]})
+
+(defn checked?
+  "Returns true if source, a program file for spec, passes spec's hidden checks."
+  [spec source]
+  (every? :ok (run-tests source (get checks (first (:names (extract spec [])))))))
+
 (defn- run-spec
-  "Solves spec with a fresh policy and prints one line. Returns [passed? api-calls]."
+  "Solves spec with a fresh policy and prints one line. Returns {:spec :passed :checked
+  :calls :seconds :tested :edit :program}: passed on the spec's tests, checked on the
+  hidden ones too; tested counts the programs local repair ran."
   [spec mock flow]
   (let [calls (atom 0)
         inner (if mock (mock-policy) (jev/client (api-key)))
@@ -75,25 +135,58 @@
                  (inner state questions))
         start (System/nanoTime)
         ;; a crash is a failed spec; keep benchmarking
-        [ok code] (try
-                    (let [out (g/solve spec policy :flow flow)
-                          code (str/split (str/trim (g/source (g/best out))) #"\s+")]
-                      [(g/passed? out) (str/join " " (drop 2 code))])
-                    (catch Exception e
-                      [false (str "crash: " (ex-message e))]))]
-    (println (format "%s %3d calls %5.1fs  %s" (if ok "PASS" "FAIL") @calls
-                     (/ (- (System/nanoTime) start) 1e9) code))
+        out (try
+              (let [out (g/solve spec policy :flow flow)
+                    source (g/source (g/best out))
+                    passed (g/passed? out)]
+                {:passed passed :checked (and passed (checked? spec source))
+                 :tested (:tested out) :edit (:edit (g/best out))
+                 :program (str/join " " (drop 2 (str/split (str/trim source) #"\s+")))})
+              (catch Exception e
+                {:passed false :tested 0 :program (str "crash: " (ex-message e))}))
+        seconds (/ (- (System/nanoTime) start) 1e9)]
+    ;; OVER: passes the spec's tests only
+    (println (format "%s %3d calls %5.1fs %6d local  %s"
+                     (cond (:checked out) "PASS" (:passed out) "OVER" :else "FAIL") @calls
+                     seconds (:tested out) (:program out)))
     (flush)
-    [ok @calls]))
+    (assoc out :spec spec :calls @calls :seconds seconds)))
+
+(defn- median [xs]
+  (let [v (vec (sort xs))
+        n (count v)]
+    (/ (+ (v (quot (dec n) 2)) (v (quot n 2))) 2.0)))
+
+(defn- stats [label xs]
+  (format "%s median %.1f, range %d-%d" label (median xs) (apply min xs) (apply max xs)))
+
+(defn- save!
+  "Writes the runs to bench/results/<time>.edn, so later changes compare without a rerun."
+  [set-name flow mock runs]
+  (let [now (LocalDateTime/now)
+        f (io/file "bench" "results" (str (.format now (DateTimeFormatter/ofPattern "yyyy-MM-dd'T'HH-mm-ss"))
+                                          "-" set-name ".edn"))]
+    (io/make-parents f)
+    (spit f (with-out-str (pprint {:date (str now) :set set-name :flow flow :mock (boolean mock)
+                                   :runs runs})))
+    (println "saved" (.getPath f))))
 
 (defn -main [& args]
   (let [argv (set args)
-        specs (cond (argv "hard") hard
-                    (argv "basic") basic
-                    (argv "held") held
-                    :else (concat basic hard))
+        runs (or (some (fn [[a b]] (when (= a "--runs") (parse-long b))) (partition 2 1 args)) 1)
+        set-name (or (some argv ["hard" "basic" "held"]) "basic+hard")
+        specs (case set-name "hard" hard "basic" basic "held" held (concat basic hard))
         flow (if (argv "pick") :pick :score)
-        results (mapv #(run-spec % (argv "--mock") flow) specs)]
-    (println (str "\n" (count (filter first results)) "/" (count specs) " passed, "
-                  (reduce + (map second results)) " API calls"))
+        results (vec (for [r (range runs)]
+                       (do (when (> runs 1) (println (str "\nrun " (inc r) " of " runs)))
+                           (let [rs (mapv #(run-spec % (argv "--mock") flow) specs)]
+                             (println (str "\n" (count (filter :checked rs)) "/" (count specs) " passed, "
+                                           (count (remove :checked (filter :passed rs)))
+                                           " more only fit the spec's tests, "
+                                           (reduce + (map :calls rs)) " API calls"))
+                             rs))))]
+    (when (> runs 1)
+      (println (stats "passed:" (map #(count (filter :checked %)) results)))
+      (println (stats "API calls:" (map #(reduce + (map :calls %)) results))))
+    (save! set-name flow (argv "--mock") results)
     (shutdown-agents)))

@@ -1,0 +1,232 @@
+{:date "2026-10-21T22:18:06.362523",
+ :set "held",
+ :flow :score,
+ :mock false,
+ :runs
+ [[{:passed true,
+    :checked true,
+    :tested 0,
+    :edit nil,
+    :program "(defn product [xs] (reduce * 1 xs))",
+    :spec
+    "product of the numbers in xs (= 24 (product [1 2 3 4])) (= 1 (product []))",
+    :calls 5,
+    :seconds 1.434611375}
+   {:passed true,
+    :checked true,
+    :tested 3615,
+    :edit "local: `reduce init`: (rest xs) -> (first xs)",
+    :program
+    "(defn smallest [xs] (min (first xs) (reduce min (first xs) xs)))",
+    :spec
+    "smallest number in xs (= 1 (smallest [3 1 2])) (= -4 (smallest [-4 0 5]))",
+    :calls 16,
+    :seconds 8.915651666}
+   {:passed true,
+    :checked true,
+    :tested 0,
+    :edit nil,
+    :program
+    "(defn count-neg [xs] (reduce (fn [acc x] (if (neg? x) (inc acc) acc)) 0 xs))",
+    :spec
+    "count the negative numbers in xs (= 2 (count-neg [-1 2 -3])) (= 0 (count-neg [1]))",
+    :calls 12,
+    :seconds 2.525581458}
+   {:passed true,
+    :checked true,
+    :tested 0,
+    :edit nil,
+    :program "(defn sum-to [n] (reduce + 0 (range 1 (inc n))))",
+    :spec
+    "sum of the numbers from 1 to n (= 15 (sum-to 5)) (= 0 (sum-to 0)) (= 1 (sum-to 1))",
+    :calls 8,
+    :seconds 1.799766542}
+   {:passed true,
+    :checked true,
+    :tested 0,
+    :edit nil,
+    :program "(defn doubled [xs] (map (fn [x] (* 2 x)) xs))",
+    :spec
+    "double every number in xs (= [2 4] (doubled [1 2])) (= [] (doubled []))",
+    :calls 8,
+    :seconds 1.652981833}
+   {:passed true,
+    :checked true,
+    :tested 0,
+    :edit nil,
+    :program "(defn all-even? [xs] (every? even? xs))",
+    :spec
+    "is every number in xs even (= true (all-even? [2 4])) (= false (all-even? [2 3])) (= true (all-even? []))",
+    :calls 4,
+    :seconds 0.861922958}
+   {:passed true,
+    :checked true,
+    :tested 0,
+    :edit nil,
+    :program "(defn digits [n] (count (str n nil)))",
+    :spec
+    "number of decimal digits of n (= 3 (digits 123)) (= 1 (digits 7)) (= 2 (digits 10))",
+    :calls 5,
+    :seconds 1.185345292}
+   {:passed true,
+    :checked true,
+    :tested 9817,
+    :edit "`defn body`: restart rest -> if",
+    :program
+    "(defn drop-n [n xs] (if (zero? n) xs (rest (drop-n (dec n) xs))))",
+    :spec
+    "drop the first n items of xs (= [3] (drop-n 2 [1 2 3])) (= [1 2] (drop-n 0 [1 2])) (= [] (drop-n 5 [1]))",
+    :calls 30,
+    :seconds 16.15126775}
+   {:passed true,
+    :checked true,
+    :tested 2716,
+    :edit "local: `fn body`: (zero? x) -> (not (zero? x))",
+    :program
+    "(defn no-zeros [xs] (filter (fn [x] (not (zero? x))) xs))",
+    :spec
+    "remove the zeros from xs (= [1 2] (no-zeros [0 1 0 2])) (= [] (no-zeros [0]))",
+    :calls 8,
+    :seconds 2.600284917}
+   {:passed true,
+    :checked true,
+    :tested 0,
+    :edit nil,
+    :program
+    "(defn square-sum [n] (reduce (fn [acc x] (+ acc x)) 0 (map (fn [x] (* x x)) (range 1 (inc n)))))",
+    :spec
+    "sum of the squares from 1 to n (= 14 (square-sum 3)) (= 0 (square-sum 0))",
+    :calls 18,
+    :seconds 3.811495458}
+   {:passed true,
+    :checked true,
+    :tested 663,
+    :edit "local: `defn body`: (rest xs) -> (first (rest xs))",
+    :program "(defn second-item [xs] (first (rest xs)))",
+    :spec
+    "the second item of xs (= 2 (second-item [1 2 3])) (= 9 (second-item [8 9]))",
+    :calls 4,
+    :seconds 1.146688875}
+   {:passed false,
+    :checked false,
+    :tested 30000,
+    :edit nil,
+    :program
+    "(defn spread [xs] (- (max (first xs) (max (max (max (max (max 0 0) (max 0 0)) (max (max 0 0) (max 0 0))) (max 0 (max 0 (max 0 0)))) (max 0 (max 0 (max 0 (max 0 0)))))) (min (first xs) 0)))",
+    :spec
+    "largest minus smallest number in xs (= 4 (spread [3 1 5])) (= 0 (spread [7]))",
+    :calls 257,
+    :seconds 61.100043292}]
+  [{:passed true,
+    :checked true,
+    :tested 0,
+    :edit nil,
+    :program "(defn product [xs] (reduce * 1 xs))",
+    :spec
+    "product of the numbers in xs (= 24 (product [1 2 3 4])) (= 1 (product []))",
+    :calls 5,
+    :seconds 1.135466583}
+   {:passed true,
+    :checked true,
+    :tested 6918,
+    :edit "`defn body`: restart min -> reduce",
+    :program "(defn smallest [xs] (reduce min (first xs) (rest xs)))",
+    :spec
+    "smallest number in xs (= 1 (smallest [3 1 2])) (= -4 (smallest [-4 0 5]))",
+    :calls 42,
+    :seconds 29.245428417}
+   {:passed true,
+    :checked true,
+    :tested 0,
+    :edit nil,
+    :program
+    "(defn count-neg [xs] (reduce (fn [acc x] (if (neg? x) (inc acc) acc)) 0 xs))",
+    :spec
+    "count the negative numbers in xs (= 2 (count-neg [-1 2 -3])) (= 0 (count-neg [1]))",
+    :calls 12,
+    :seconds 2.437367667}
+   {:passed true,
+    :checked true,
+    :tested 0,
+    :edit nil,
+    :program "(defn sum-to [n] (reduce + 0 (range 1 (inc n))))",
+    :spec
+    "sum of the numbers from 1 to n (= 15 (sum-to 5)) (= 0 (sum-to 0)) (= 1 (sum-to 1))",
+    :calls 8,
+    :seconds 1.807371709}
+   {:passed true,
+    :checked true,
+    :tested 0,
+    :edit nil,
+    :program "(defn doubled [xs] (map (fn [x] (* 2 x)) xs))",
+    :spec
+    "double every number in xs (= [2 4] (doubled [1 2])) (= [] (doubled []))",
+    :calls 8,
+    :seconds 1.65149875}
+   {:passed true,
+    :checked true,
+    :tested 0,
+    :edit nil,
+    :program "(defn all-even? [xs] (every? even? xs))",
+    :spec
+    "is every number in xs even (= true (all-even? [2 4])) (= false (all-even? [2 3])) (= true (all-even? []))",
+    :calls 4,
+    :seconds 0.981208292}
+   {:passed true,
+    :checked true,
+    :tested 0,
+    :edit nil,
+    :program "(defn digits [n] (count (str n nil)))",
+    :spec
+    "number of decimal digits of n (= 3 (digits 123)) (= 1 (digits 7)) (= 2 (digits 10))",
+    :calls 5,
+    :seconds 1.096444125}
+   {:passed true,
+    :checked true,
+    :tested 1784,
+    :edit "`defn body`: rest -> if",
+    :program
+    "(defn drop-n [n xs] (if (zero? n) xs (drop-n (dec n) (rest xs))))",
+    :spec
+    "drop the first n items of xs (= [3] (drop-n 2 [1 2 3])) (= [1 2] (drop-n 0 [1 2])) (= [] (drop-n 5 [1]))",
+    :calls 14,
+    :seconds 4.81285525}
+   {:passed true,
+    :checked true,
+    :tested 2716,
+    :edit "local: `fn body`: (zero? x) -> (not (zero? x))",
+    :program
+    "(defn no-zeros [xs] (filter (fn [x] (not (zero? x))) xs))",
+    :spec
+    "remove the zeros from xs (= [1 2] (no-zeros [0 1 0 2])) (= [] (no-zeros [0]))",
+    :calls 8,
+    :seconds 2.558428208}
+   {:passed true,
+    :checked true,
+    :tested 0,
+    :edit nil,
+    :program
+    "(defn square-sum [n] (reduce (fn [acc x] (+ acc x)) 0 (map (fn [x] (* x x)) (range 1 (inc n)))))",
+    :spec
+    "sum of the squares from 1 to n (= 14 (square-sum 3)) (= 0 (square-sum 0))",
+    :calls 18,
+    :seconds 3.816236333}
+   {:passed true,
+    :checked true,
+    :tested 663,
+    :edit "local: `defn body`: (rest xs) -> (first (rest xs))",
+    :program "(defn second-item [xs] (first (rest xs)))",
+    :spec
+    "the second item of xs (= 2 (second-item [1 2 3])) (= 9 (second-item [8 9]))",
+    :calls 4,
+    :seconds 1.140411917}
+   {:passed false,
+    :checked false,
+    :tested 18493,
+    :edit "`max b`: lit:0 -> max + `min b`: lit:0 -> min",
+    :program
+    "(defn spread [xs] (- (max (first xs) (max (max (max (max (max 0 0) (max 0 0)) (max (max 0 0) (max 0 0))) (max 0 (max (max 0 0) (max 0 0)))) (max (max 0 (max 0 (max 0 0))) (max 0 (max 0 0))))) (first xs)))",
+    :spec
+    "largest minus smallest number in xs (= 4 (spread [3 1 5])) (= 0 (spread [7]))",
+    :calls 197,
+    :seconds 46.052335667}]]}

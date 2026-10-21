@@ -4,15 +4,19 @@ Planned work, highest priority first. Move an item to [CHANGELOG.md](CHANGELOG.m
 
 ## Search quality
 
-- [ ] **Localize faults from traced values, not only from Score.** `take-n` fails because Jev rates
-  `(> n 0)` as plausible even when the trace shows it true after `(first xs)` returned `()`. Rank a
-  subtree as suspect when its values contradict the expected result of the failing test.
+- [ ] **Guard every passing program on two-test specs.** All OVER programs so far (`power`,
+  `largest`, `dot`) came from specs with two tests, where no test can be held out; Jev's own edits
+  made three of them and local repair one. Showing Jev each program's outputs on new inputs did
+  not help: it still picked `power` with `(power 2 4)` = 8, at p = 0.93 against 0.06 for none.
+  Generating extra inputs whose answer follows from the spec is the open problem.
+- [ ] **Repair bugs that need two distant changes.** Local repair fixes a program one small change
+  away, or two when the first already brings it closer to passing. Two changes far apart that only
+  help together are left to Jev's pair edits, which are few.
 - [ ] **Explore near-tied first decisions.** When the top two options of an early decision are within
-  a small margin (for `fib`, `<=` vs `<` at p ≈ 0.5), queue the runner-up as an edit before any
-  Score round, so one unlucky pick cannot sink the run.
-- [ ] **Guard against programs that only fit the given tests.** Hold one test out of the search and
-  accept a passing program only if it also passes the held-out test (see `power` in the README).
-- [ ] **Fix the remaining hard failures:** `take-n`, `dot`, `digit-sum`, `prime?`.
+  a small margin, queue the runner-up as an edit before any Score round, so one unlucky pick cannot
+  sink the run. Local repair already covers this for leaves (`<=` vs `<` in `fib`), not for shapes.
+- [ ] **Fix the remaining failures:** `take-n` from a `loop` first program, `prime?` and `dot` when
+  the first program has the wrong shape, and `spread` on the held-out set.
 
 ## Model
 
@@ -24,10 +28,8 @@ Planned work, highest priority first. Move an item to [CHANGELOG.md](CHANGELOG.m
 
 ## Measurement
 
-- [ ] **Report the benchmark over several runs.** Add a `--runs N` option to `clojure -M:bench` that
-  prints the median and range of passes and API calls per set, since single runs vary.
-- [ ] **Keep benchmark results as data.** Write each run to `bench/results/<date>.edn` so changes can
-  be compared without re-running.
+- [ ] **More hidden checks.** `checks` in `src/cljjev/bench.clj` has two to four tests per spec; a
+  program that fits them by chance still counts as a pass.
 
 ## Verification
 
@@ -41,8 +43,8 @@ Planned work, highest priority first. Move an item to [CHANGELOG.md](CHANGELOG.m
 
 - [ ] **Continuous integration.** Run `clojure -M:test`, `clojure -M:lint` and `clojure -M:fmt` on
   every push once the repository has a remote.
-- [ ] **Faster test runs.** Keep one `bb` process alive and send it programs over its nREPL server,
-  restarting it after a timeout; each run currently pays about 0.2 s of process start-up.
+- [ ] **Faster test runs.** Local repair runs programs in batches (`batch/run-batch`), but each
+  Jev-built program and each trace still starts its own `bb` process, about 0.2 s each.
 
 ## Scope
 

@@ -64,6 +64,9 @@
   ["inc" "dec" "not" "nil?" "empty?" "first" "rest" "count" "str" "+" "*" "max" "min"
    "zero?" "pos?" "neg?" "even?" "odd?"])
 
+;; keep a half-right subtree inside a new form
+(def wrap-ops ["+" "-" "*" "and" "or" "not"])
+
 (def ^:private kind-words {"num" "a number" "seq" "a collection" "bool" "true or false"})
 
 (def ^:private special-forms

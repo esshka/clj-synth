@@ -304,6 +304,10 @@ footer { padding: 32px 0 48px; border-top: 1px solid var(--rule); color: var(--m
           sheet above.</p></div></li>
         <li><div><h3>Test</h3><p>The finished program runs against every test in a separate
           process with a time limit, so a program that never stops cannot hang the search.</p></div></li>
+        <li><div><h3>Repair locally</h3><p>Thousands of small legal changes to the failed program
+          run at once, with no question to the model: a new small subtree, another operator, swapped
+          arguments, or a wrap. If some pass every test, the model picks the one that fits the spec,
+          or rejects them all.</p></div></li>
         <li><div><h3>Trace and score</h3><p>Each test runs again with a spy around every chosen
           subtree. The model rates each subtree from wrong to correct, and it sees what the
           subtree computed on the passing and the failing tests.</p></div></li>
@@ -325,12 +329,14 @@ footer { padding: 32px 0 48px; border-top: 1px solid var(--rule); color: var(--m
     <section id="results">
       <h2>What it does today</h2>
       <p class="lede" style="margin-top:16px">Two live runs of the latest version with the Jev
-        model, on two sets of specs. The model's answers change between runs, so results can differ.</p>
+        model, on three sets of specs. A program counts only if it also passes hidden tests the
+        search never sees. The model's answers change between runs, so results can differ.</p>
       <table>
         <thead><tr><th>Spec set</th><th>Passed</th><th>API calls per run</th></tr></thead>
         <tbody>
-          <tr><td>Basic: factorial, fib, reverse, clamp and 11 more</td><td class="num">15 of 15</td><td class="num">142 to 218</td></tr>
-          <tr><td>Hard: gcd, take-n, dot product, prime? and 10 more</td><td class="num">11 of 14</td><td class="num">443 to 580</td></tr>
+          <tr><td>Basic: factorial, fib, reverse, clamp and 11 more</td><td class="num">14 of 15</td><td class="num">138 to 140</td></tr>
+          <tr><td>Hard: gcd, take-n, dot product, prime? and 10 more</td><td class="num">11 of 14</td><td class="num">378 to 389</td></tr>
+          <tr><td>Held out: never used for tuning, 12 specs</td><td class="num">11 of 12</td><td class="num">325 to 375</td></tr>
         </tbody>
       </table>
       <div class="limits">
@@ -340,8 +346,9 @@ footer { padding: 32px 0 48px; border-top: 1px solid var(--rule); color: var(--m
           the search once returned the sum 1 + 2 + … + n. Specs need tests that rule out shortcuts.</p></div>
         <div><h3>Answers vary between runs</h3><p>When two options are close, the same spec can
           pass in one run and fail in the next.</p></div>
-        <div><h3>Finding the wrong part is hard</h3><p>Most failures happen when the model rates
-          the broken subtree as plausible, so the search never edits it.</p></div>
+        <div><h3>A wrong first shape is hard to leave</h3><p>Local repair fixes a program a few
+          choices away from correct. When the first program has the wrong shape, only the model's
+          restarts and edits can change it.</p></div>
       </div>
     </section>
 
