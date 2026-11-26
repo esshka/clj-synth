@@ -4,10 +4,13 @@
   (first (rest xs)) fits both tests of the largest number in xs."
   (:require [clojure.string :as str]
             [cljjev.catalog :refer [ordered]]
-            [cljjev.env :refer [extract]]))
+            [cljjev.env :refer [extract]]
+            [cljjev.generate :as g]))
 
 ;; an answer below this is no test
 (def ^:private sure 0.9)
+;; in a second look, Jev's first answer stands at this or more
+(def ^:private backed 0.5)
 ;; values a number question offers, beside the numbers of the spec's own tests
 (def ^:private offered (range -1 41))
 
@@ -60,3 +63,34 @@
                    :let [v (value returns (get answers input))]
                    :when v]
                (str "(= " v " " (call input) ")")))))))
+
+(defn second-look
+  "Returns outcome with :dropped, one of Jev's tests in asked, taken out of the best
+  program's results when that program passes every other test and Jev, shown the program's
+  number beside its own, no longer backs its first answer: one wrong test fails a right
+  program, as (= 35 (square-sum 5)) did. Else returns outcome; one request when it asks.
+  ponytail: numbers only, a yes or no has no second answer to show; and the search has
+  spent its tries by now, so look inside the search if this fires often."
+  [outcome spec asked policy]
+  (let [best (g/best outcome)
+        failed (remove :ok (:results best))
+        {:keys [test detail]} (first failed)
+        [_ first-answer got] (some->> detail (re-find #"^FAIL expected (-?\d+), got (-?\d+)$"))]
+    (if-not (and (= 1 (count failed)) (some #{test} asked) got)
+      outcome
+      (let [pools (extract spec [])
+            call (second (re-find #"^\(= \S+ (.+)\)$" test))
+            options (ordered (concat (for [n (sort [(parse-long first-answer) (parse-long got)])]
+                                       [(str n) (str n)])
+                                     [["other" "another number"]]))
+            answer (get (policy {:function (first (:names pools)) :meaning (:prose pools)
+                                 :examples (:tests pools)}
+                                {"look" {:type "choice" :criteria options
+                                         :instructions (str "Two answers were given for " call
+                                                            ". Which number is it?")}})
+                        "look")
+            at (.indexOf ^java.util.List (:attempts outcome) best)]
+        (cond-> (update outcome :calls inc)
+          (< (get-in answer ["probabilities" first-answer] 0.0) backed)
+          (-> (assoc :dropped test)
+              (update-in [:attempts at :results] (fn [rs] (vec (remove #(= test (:test %)) rs))))))))))

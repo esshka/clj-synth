@@ -54,8 +54,10 @@ Planned work, highest priority first. Move an item to [CHANGELOG.md](CHANGELOG.m
   In one live run of each set it removed every program that only fits its tests on basic, hard and
   held (`power`, `largest`, `dot` passed), and it cost one pass on held: `(= 35 (square-sum 5))` is
   wrong and failed a correct program. Open points:
-  - One wrong test fails a right program. A program that passes the spec's tests and all of
-    Jev's tests but one could be shown to Jev, or the one test asked again.
+  - One wrong test fails a right program. A second look now drops a number test that Jev leaves
+    when it sees the program's number; it has met one wrong test so far. It comes after the
+    search has spent its tries (109 calls for `square-sum`), and a wrong yes or no test, or two
+    wrong tests, still fail the program.
   - Outside the domain of a spec Jev answers by mathematics: `(= 0 (choose 4 6))`.
   - A function that returns a collection gets no tests, and a number above 40 is not on offer, so
     `(power 2 8)` is never asked. Shrink still covers `power`.

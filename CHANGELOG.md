@@ -27,6 +27,12 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- A second look at one of Jev's tests (`second-look` in `src/cljjev/oracle.clj`): when the best
+  program passes every test but one of Jev's number tests, Jev sees its number beside the
+  program's, and a first answer it no longer backs is dropped. Replayed on the four `sure` runs it
+  asks once and drops the wrong `(= 35 (square-sum 5))`: held 10 of 12 before, 11 after, the other
+  sets the same, one more API call.
+
 - `--sure` and `clojure -M:bench sure <set>` (`src/cljjev/oracle.clj`): one more request asks Jev
   what the function returns for fixed inputs, and each answer at 0.9 or more becomes a test, so
   two weak tests no longer judge alone. One live run of each set against the earlier scores:

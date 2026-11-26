@@ -14,7 +14,7 @@
             [cljjev.generate :as g]
             [cljjev.jev :as jev]
             [cljjev.library :as library]
-            [cljjev.oracle :refer [sure-tests]]
+            [cljjev.oracle :refer [second-look sure-tests]]
             [cljjev.policy :refer [flat-policy mock-policy]]
             [cljjev.report :as report]
             [cljjev.validate :refer [run-tests]])
@@ -197,10 +197,11 @@
               (let [asked (cond (vector? sure) sure
                                 sure (without-checks spec (sure-tests spec policy))
                                 :else [])
-                    out (library/solve spec policy solved :flow flow :tests asked)
+                    out (second-look (library/solve spec policy solved :flow flow :tests asked)
+                                     spec asked policy)
                     source (g/source (g/best out))
                     passed (g/passed? out)]
-                {:passed passed :asked asked
+                {:passed passed :asked asked :dropped (:dropped out)
                  :checked (and passed (checked? spec (str (apply str (map :source solved)) source)))
                  :tested (:tested out) :edit (:edit (g/best out))
                  :program (str/join " " (drop 2 (str/split (str/trim source) #"\s+")))})

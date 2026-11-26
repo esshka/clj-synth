@@ -6,7 +6,7 @@
             [cljjev.generate :as g]
             [cljjev.jev :as jev]
             [cljjev.library :as library]
-            [cljjev.oracle :refer [sure-tests]]
+            [cljjev.oracle :refer [second-look sure-tests]]
             [cljjev.policy :refer [mock-policy]]))
 
 (defn- dotenv
@@ -120,6 +120,9 @@
                             (do (err "cljjev: no program passed; searching once more")
                                 (solve))
                             outcome)
+                  outcome (second-look outcome spec asked policy)
+                  _ (when-let [t (:dropped outcome)]
+                      (err (str "dropped Jev's test " t ": shown both answers, Jev took the program's")))
                   code (max code (report outcome (:out options) (not= spec (first arguments))))]
               (if more
                 (recur more

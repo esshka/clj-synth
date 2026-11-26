@@ -121,7 +121,9 @@ decided by running the specification's tests in a real Clojure runtime. When sev
 programs pass, Jev only picks the one that implements the specification, or rejects them all.
 With `--sure`, Jev also writes tests: an answer at 0.9 or more to "what is `(largest [3 1 2])`?"
 becomes a test. A test can only reject a program, so a wrong answer can make a right program
-fail, and then the exit status is `1` because of a test the user did not write.
+fail, and then the exit status is `1` because of a test the user did not write. When the best
+program fails only one of Jev's number tests, Jev gets a second look: it sees its number and the
+program's number, and if it leaves its first answer, that test is dropped.
 
 **Programs are data.** A program is plain Clojure data (lists, vectors, symbols and numbers) that
 is read by the Clojure reader and printed back. An unfilled slot is a map such as
@@ -301,6 +303,11 @@ basic, hard and held. `largest`, `dot`, `power` and `take-n` passed. The cost is
 held set `(= 35 (square-sum 5))` is wrong (it is 55), and that one test failed the correct
 program the search had found. `(= 0 (choose 4 6))` is right in mathematics, and the simple formula
 has no answer there. One wrong test fails a right program, so `sure` is an option, not the default.
+
+The second look was added after these runs. In a probe Jev left its wrong 35 for 55, and kept its
+own answer in all 23 cases where the program was the wrong one. Replayed on the four runs above, it
+asks once and drops `(= 35 (square-sum 5))`, so the held score is 11 of 12; nothing else changes.
+It has one wrong test to its name, so this is a sample too.
 
 One live run of each on 2026-11-26: 4 of 8 main functions passed after their parts (558 API calls,
 parts included) and 4 of 8 alone (528 calls). The same four passed both ways (`digital-root`,
