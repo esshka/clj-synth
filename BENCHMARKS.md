@@ -246,24 +246,24 @@ Each main function is solved after its parts, which are then options for it (`sp
 | `divisor-sum` (part) | PASS | 15 | `(defn divisor-sum [n] (reduce + 0 (filter (fn [x] (divides? x n)) (range 1 n))))` |
 | `perfect?` | PASS | 26 | `(defn perfect? [n] (= (divisor-sum n) n))` |
 
-### `split-sure-plan`, 2026-11-26 14:39, flow :score
+### `split-sure-plan`, 2026-11-26 17:51, flow :score
 
 | Function | Result | API calls | Program of the last run |
 | --- | --- | --- | --- |
-| `prime?` (part) | PASS | 113 | `(defn prime? [n] (cond (<= n 1) false (= 2 n) true :else (every? (fn [i] (not (zero? (mod n i)))) (range 2 n))))` |
-| `prime-sum` | PASS | 124 | `(defn prime-sum [n] (reduce + 0 (filter prime? (range 2 n))))` |
+| `prime?` (part) | PASS | 72 | `(defn prime? [n] (cond (< n 2) false false false :else (every? (fn [i] (not (zero? (mod n i)))) (range 2 n))))` |
+| `prime-sum` | PASS | 83 | `(defn prime-sum [n] (reduce + 0 (filter prime? (range 2 n))))` |
 | `gcd` (part) | PASS | 12 | `(defn gcd [a b] (if (zero? b) a (gcd b (mod a b))))` |
-| `lcm` | PASS | 57 | `(defn lcm [a b] (/ (* a b) (gcd a b)))` |
+| `lcm` | FAIL | 77 | `(defn lcm [a b] (* b a))` |
 | `digit-sum` (part) | PASS | 20 | `(defn digit-sum [n] (loop [x n acc 0] (if (zero? x) acc (recur (quot x 10) (+ (mod x 10) acc)))))` |
 | `digital-root` | PASS | 31 | `(defn digital-root [n] (if (< n 10) n (digital-root (digit-sum n))))` |
 | `rev` (part) | PASS | 11 | `(defn rev [coll] (reduce (fn [acc x] (cons x acc)) [] coll))` |
 | `palindrome?` | PASS | 18 | `(defn palindrome? [xs] (= (rev xs) xs))` |
 | `factorial` (part) | PASS | 12 | `(defn factorial [n] (if (zero? n) 1 (* (factorial (dec n)) n)))` |
-| `choose` | FAIL | 87 | `(defn choose [n k] (/ (factorial n) (/ (factorial k) (factorial (- n k)))))` |
-| `fib` (part) | PASS | 64 | `(defn fib [n] (if (< n 2) n (+ (fib (- n 2)) (fib (dec n)))))` |
-| `fib-sum` | PASS | 86 | `(defn fib-sum [n] (loop [sum 0 up 1 nth n] (if (zero? nth) sum (recur (+ sum up) (inc sum) (dec nth)))))` |
-| `collatz` (part) | PASS | 26 | `(defn collatz [n] (loop [x n steps 0] (if (<= x 1) steps (recur (if (even? x) (/ x 2) (+ (* 3 x) 1)) (+ 1 steps)))))` |
-| `longest` | OVER | 39 | `(defn longest [n] (collatz n))` |
+| `choose` | FAIL | 76 | `(defn choose [n k] (if (< n k) 0 1))` |
+| `fib` (part) | PASS | 20 | `(defn fib [n] (loop [x 0 acc 1 i n] (if (> i 0) (recur acc (+ x acc) (dec i)) x)))` |
+| `fib-sum` | PASS | 42 | `(defn fib-sum [n] (loop [sum 0 up 1 nth n] (if (zero? nth) sum (recur (+ sum up) (inc sum) (dec nth)))))` |
+| `collatz` (part) | PASS | 26 | `(defn collatz [n] (loop [x n steps 0] (if (= 1 x) steps (recur (if (even? x) (/ x 2) (+ (* 3 x) 1)) (+ 1 steps)))))` |
+| `longest` | OVER | 67 | `(defn longest [n] (loop [up 1 largest 0] (if (<= up n) (recur (inc up) (collatz up)) largest)))` |
 | `divides?` (part) | PASS | 7 | `(defn divides? [d n] (zero? (mod n d)))` |
 | `divisor-sum` (part) | PASS | 16 | `(defn divisor-sum [n] (reduce + 0 (filter (fn [x] (divides? x n)) (range 1 n))))` |
 | `perfect?` | PASS | 30 | `(defn perfect? [n] (= (divisor-sum n) n))` |
@@ -272,6 +272,7 @@ Each main function is solved after its parts, which are then options for it (`sp
 
 | Date | Set | Flow | PASS | OVER | FAIL | API calls |
 | --- | --- | --- | --- | --- | --- | --- |
+| 2026-11-26 17:51 | `split-sure-plan` | :score | 5 | 1 | 2 | 424 |
 | 2026-11-26 14:39 | `split-sure-plan` | :score | 6 | 1 | 1 | 472 |
 | 2026-11-26 12:37 | `split-sure` | :score | 5 | 1 | 2 | 762 |
 | 2026-11-26 12:33 | `held-sure` | :score | 11 | 0 | 1 | 426 |

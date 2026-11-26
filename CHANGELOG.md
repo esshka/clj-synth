@@ -33,7 +33,8 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   outside them is dropped. In a probe Jev said no for all three `choose` tests with k above n and
   yes for 173 of 176 tests inside the domain. It has not fired in a live run: `choose`, run twice
   with `--sure --plan`, passed both times with a guard for k above n (48 and 45 API calls; it
-  failed in all five earlier `split` runs).
+  failed in all five earlier `split` runs). A second full run of `sure plan split` then gave 5 of
+  8 (424 calls) after 6 of 8, with `choose` and `lcm` failed.
 
 - `--plan` and `clojure -M:bench plan <set>` (`src/cljjev/wording.clj`): one request asks Jev if a
   formula or a repetition gives the result, and for a formula the first step of the build is

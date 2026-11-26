@@ -330,6 +330,14 @@ After that run Jev's tests got the look at their domain, and `choose` was run al
 tests with a guard, so the new look was not needed and has not fired live yet. Replayed on the
 failed results of the saved runs it drops nothing.
 
+A second full run of `sure plan split` gave 5 of 8 (424 API calls), so the two runs are 6 and 5,
+and the six `split` runs with parts are 4, 5, 5, 5, 6 and 5. Which functions pass moves from run
+to run: `choose` and `lcm` both started with `/` and were not finished this time (`choose` ended
+as `(if (< n k) 0 1)`), so `choose` has passed in 2 of 4 runs with both options. That run also
+shows shrink doing harm: the search found the correct `longest`, with
+`(recur (inc up) (max largest (collatz up)))`, and shrink cut the `max`, because the four tests
+of `longest` pass without it. The hidden checks then failed the program.
+
 One live run of each on 2026-11-26: 4 of 8 main functions passed after their parts (558 API calls,
 parts included) and 4 of 8 alone (528 calls). The same four passed both ways (`digital-root`,
 `palindrome?`, `fib-sum`, `perfect?`), so the split did not raise the pass rate here; it lowered
