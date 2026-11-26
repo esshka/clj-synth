@@ -86,6 +86,16 @@
      :arity arity
      ;; function name -> kind of each argument (num seq bool any), from the test values
      :param-kinds (into {} (for [n (keys arity)] [n (param-kinds (args-of n))]))
+     ;; function name -> kind of its value: the side of each (= a b) that is not the call
+     :returns (into {} (for [n (keys arity)
+                             :let [kinds (set (for [t tests
+                                                    form (read-all t)
+                                                    :when (= (head form) "=")
+                                                    :let [[_ a b] form]
+                                                    [call want] [[a b] [b a]]
+                                                    :when (= (head call) n)]
+                                                (kind want)))]]
+                         [n (if (= 1 (count kinds)) (first kinds) "any")]))
      ;; function name -> [a test call, its argument texts]
      :examples (into {} (for [n (keys arity) :let [args (first (args-of n))]]
                           [n [(flat (apply list (symbol n) args)) (mapv flat args)]]))
@@ -93,6 +103,16 @@
      :locals (vec (distinct (concat spec-locals default-locals)))
      :lits (into (mapv #(vector % "num") (distinct (concat default-numbers numbers)))
                  [["true" "bool"] ["false" "bool"] ["nil" "any"] ["[]" "seq"]])}))
+
+(defn with-library
+  "Returns pools with library on offer: solved functions as {:name :params :kinds :returns
+  :doc}. Their names are no longer free for the new function or its locals."
+  [pools library]
+  (let [taken (set (map :name library))]
+    (-> pools
+        (update :names #(vec (remove taken %)))
+        (update :locals #(vec (remove taken %)))
+        (assoc :library (vec library)))))
 
 (defn- syms [items]
   (mapv str (filter symbol? items)))

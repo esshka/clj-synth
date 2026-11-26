@@ -208,7 +208,7 @@
 
 (defn- exprs
   "Options for an expression slot: locals, literals, fn refs, then (below max-depth)
-  core calls, special forms and calls to the function being written."
+  core calls, special forms, calls to the function being written and to the library."
   [hole env pools max-depth]
   (let [e (:kind hole)
         kinds (get (:param-kinds pools) (:fname env) [])
@@ -225,7 +225,7 @@
         lits (for [[text kind] (:lits pools) :when (fits? kind e)]
                [(str "lit:" text) [(str "the literal " text) (read-string text)]])
         ref-opts (when (= e "fn")
-                   (for [name (concat (keys (:functions env)) refs)]
+                   (for [name (concat (keys (:functions env)) (map :name (:library pools)) refs)]
                      [(str "ref:" name)
                       [(str "the function `" name "` passed by name") (symbol name)]]))
         compound (when (< (:depth env) max-depth)
@@ -238,7 +238,10 @@
                       [(str "call:" name)
                        [(str "(" name " " (blanks arity) ") call `" name
                              "`, the function being defined")
-                        (call-node name (for [i (range arity)] ["any" (str "arg " (inc i))]))]])))]
+                        (call-node name (for [i (range arity)] ["any" (str "arg " (inc i))]))]])
+                    (for [{:keys [name params kinds returns doc]} (:library pools)
+                          :when (fits? returns e)]
+                      [(str "call:" name) [doc (call-node name (map vector kinds params))]])))]
     (ordered (concat locals lits ref-opts compound))))
 
 (defn legal

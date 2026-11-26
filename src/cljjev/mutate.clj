@@ -1,7 +1,8 @@
 (ns cljjev.mutate
   "Small changes to a finished program, each one a program build could make: a new small
-  subtree, another operator over the same arguments, swapped arguments, or a wrap in a new
-  form. Local repair tests them without asking Jev."
+  subtree, another operator over the same arguments, swapped arguments, a wrap in a new
+  form, or a part in place of the whole. Local repair and shrink test them without asking
+  Jev."
   (:require [cljjev.catalog :refer [known legal wrap-ops]]
             [cljjev.env :refer [context]]
             [cljjev.tree :refer [->hole branch? head hole? holes node-at put-at]]))
@@ -147,3 +148,26 @@
   (let [opts (options pools limits)]
     (apply concat (pmap (fn [d] (mapv #(assoc % :site d) (changes-at opts tree d size)))
                         (filter #(expr-kinds (get-in % [:hole :kind])) (decisions opts tree))))))
+
+(defn- parts
+  "Returns [path part] for every expression inside node, paths relative, outermost first."
+  [node]
+  (when (branch? node)
+    (mapcat (fn [[i c]] (cons [[i] c] (for [[p x] (parts c)] [(into [i] p) x])))
+            (drop (if (seq? node) 1 0) (map-indexed vector node)))))
+
+(defn hoists
+  "Returns {:tree :dropped} for every way to replace one expression of tree by a part of
+  itself, where build could make the result: (max (first xs) (reduce max a b)) ->
+  (reduce max a b). dropped holds the paths in tree of the expressions that go."
+  [tree pools limits]
+  (let [opts (options pools limits)
+        exprs (filter #(expr-kinds (get-in % [:hole :kind])) (decisions opts tree))
+        under? (fn [root path] (= root (take (count root) path)))]
+    (for [{:keys [path hole]} exprs
+          [q part] (parts (node-at tree path))
+          :let [new (put-at tree path part)
+                kept (into path q)]
+          :when (parse opts new path hole)]
+      {:tree new
+       :dropped (for [p (map :path exprs) :when (and (under? path p) (not (under? kept p)))] p)})))

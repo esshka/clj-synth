@@ -7,8 +7,8 @@
   (:require [clojure.string :as str]
             [cljjev.batch :refer [run-batch]]
             [cljjev.catalog :refer [arg-holes core-returns docs fits? legal ordered wrap-ops]]
-            [cljjev.env :refer [context extract]]
-            [cljjev.local :refer [repair]]
+            [cljjev.env :refer [context extract with-library]]
+            [cljjev.local :refer [repair shrink]]
             [cljjev.trace :refer [has-recur? instrument trace-values]]
             [cljjev.tree :refer [->hole flat head holes node-at put-at render]]
             [cljjev.validate :refer [run-tests structure]])
@@ -646,11 +646,11 @@
   "Searches for a program meeting spec. Returns {:attempts :calls :tested}: tested counts
   local repair's programs. A duplicate program costs no try, a replayed decision no API call.
 
-  Options: :tests (extra test forms), :limits, and the effects :run (tests),
-  :trace (traced values), :batch (local repair's runs; nil turns it off), :log (each new
-  decision), :log-attempt (each attempt), and :flow, :score (Score finds the bug, a
-  formula ranks edits) or :pick (Jev picks the edit)."
-  [spec policy & {:keys [tests limits run log log-attempt trace flow batch]
+  Options: :tests (extra test forms), :limits, :library (see library/solve), and the effects
+  :run (tests), :trace (traced values), :batch (local repair's and shrink's runs; nil turns
+  both off), :log (each new decision), :log-attempt (each attempt), and :flow, :score (Score
+  finds the bug, a formula ranks edits) or :pick (Jev picks the edit)."
+  [spec policy & {:keys [tests limits run log log-attempt trace flow batch library]
                   :or {tests []
                        limits default-limits
                        run run-tests
@@ -661,15 +661,15 @@
                        flow :score}}]
   (let [calls (atom 0)
         ctx {:ask (asker policy calls)
-             :pools (extract spec tests)
+             :pools (with-library (extract spec tests) library)
              :limits limits
              :run run
              :log log
              :trace trace
              :flow flow
              :batch batch}
-        done (fn [search] {:attempts (:attempts search) :calls @calls
-                           :tested (count (:tested search))})]
+        done (fn [search] {:attempts (shrink batch (:pools ctx) limits log-attempt (:attempts search))
+                           :calls @calls :tested (count (:tested search))})]
     (loop [search {:pops 0 :singles (sorted-map) :pairs (sorted-map) :restarts (sorted-map) :tick 0
                    :attempts [] :seen #{} :tested #{}
                    :plan {} :start 0 :edit nil :feedback nil :depth 0}]

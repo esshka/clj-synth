@@ -2,7 +2,7 @@
   (:require [clojure.test :refer [deftest is]]
             [cljjev.env :refer [extract]]
             [cljjev.generate :as g]
-            [cljjev.mutate :refer [neighbors redundant? sites]]
+            [cljjev.mutate :refer [hoists neighbors redundant? sites]]
             [cljjev.test-support :refer [build fact-keys fact-pools limits short-keys]]
             [cljjev.tree :refer [flat node-at]]
             [cljjev.validate :refer [structure]]))
@@ -46,3 +46,16 @@
   (is (redundant? '(inc (empty? (quote ())))))
   (is (not (redundant? '(+ 1 n))))
   (is (not (redundant? '(recur 1)))))
+
+(deftest hoists-put-a-part-in-place-of-the-whole
+  (let [pools (extract "largest number in xs (= 9 (largest [3 9 2])) (= -1 (largest [-5 -1 -3]))" [])
+        tree '(defn largest [xs] (max (first (rest xs)) (reduce max (first xs) (rest xs))))
+        found (hoists tree pools limits)
+        dropped (into {} (map (juxt (comp flat :tree) (comp set :dropped))) found)]
+    ;; the max and its first argument go, the reduce stays
+    (is (= #{[3] [3 1] [3 1 1] [3 1 1 1]}
+           (dropped "(defn largest [xs] (reduce max (first xs) (rest xs)))")))
+    ;; a collection in a number slot, and a bare param as the body, are not legal
+    (is (not (contains? dropped "(defn largest [xs] (max (rest xs) (reduce max (first xs) (rest xs))))")))
+    (is (not (contains? dropped "(defn largest [xs] xs)")))
+    (is (every? #(sites (:tree %) pools limits) found))))

@@ -1,10 +1,11 @@
 (ns cljjev.cli
-  "Command line: clojure -M:run [--mock] [--trace] [--test FORM]... SPEC"
+  "Command line: clojure -M:run [--mock] [--trace] [--test FORM]... SPEC..."
   (:require [clojure.java.io :as io]
             [clojure.string :as str]
             [clojure.tools.cli :refer [parse-opts]]
             [cljjev.generate :as g]
             [cljjev.jev :as jev]
+            [cljjev.library :as library]
             [cljjev.policy :refer [mock-policy]]))
 
 (defn- dotenv
@@ -29,7 +30,7 @@
 (def ^:private cli-options
   (let [limit (fn [flag doc k]
                 [nil flag doc :default (get g/default-limits k) :parse-fn parse-long])]
-    [[nil "--test FORM" "extra test form, e.g. '(= 120 (factorial 5))'"
+    [[nil "--test FORM" "extra test form for the last SPEC, e.g. '(= 120 (factorial 5))'"
       :multi true :default [] :update-fn conj]
      [nil "--mock" "use the local mock policy, not the API"]
      [nil "--trace" "print every Choice to stderr"]
@@ -42,7 +43,7 @@
      ["-h" "--help"]]))
 
 (def ^:private usage-error
-  "cljjev: expected one SPEC argument; (= ...) forms inside it become tests")
+  "cljjev: expected a SPEC argument; (= ...) forms inside it become tests")
 
 (defn- err [& xs]
   (binding [*out* *err*]
@@ -65,13 +66,14 @@
                 (mock-policy)))))
 
 (defn- report
-  "Prints the best program to stdout and its test results to stderr. Returns the exit
-  code."
-  [outcome out-file]
-  (let [best (g/best outcome)]
-    (println (g/source best))
+  "Prints the best program to stdout and its test results to stderr; a later program of
+  the run goes after the earlier ones in out-file. Returns the exit code."
+  [outcome out-file later?]
+  (let [best (g/best outcome)
+        text (if later? (str (:code best) "\n") (g/source best))]
+    (println text)
     (when out-file
-      (spit out-file (g/source best)))
+      (spit out-file (str (when later? "\n") text) :append later?))
     (if (nil? (:results best))
       (do (err "tests: none run (no tests, or no bb/clojure on PATH)")
           0)
@@ -87,23 +89,34 @@
   (let [{:keys [options arguments errors summary]} (parse-opts args cli-options)]
     (cond
       (:help options)
-      (do (println "usage: cljjev [options] SPEC\n" summary)
+      (do (println "usage: cljjev [options] SPEC...\n" summary)
           0)
 
-      (or errors (not= 1 (count arguments)))
+      (or errors (empty? arguments))
       (do (err (str/join "\n" (or errors [usage-error])))
           2)
 
       :else
       (try
-        (report (g/solve (first arguments) (policy options)
-                         :tests (:test options)
-                         :limits (merge g/default-limits
-                                        (select-keys options [:max-depth :max-steps :tries]))
-                         :log (if (:trace options) log-decision (fn [_]))
-                         :log-attempt log-attempt
-                         :flow (if (:pick options) :pick :score))
-                (:out options))
+        ;; each spec that passes is an option for the specs after it
+        (let [policy (policy options)]
+          (loop [[spec & more] arguments
+                 solved []
+                 code 0]
+            (let [outcome (library/solve spec policy solved
+                                         :tests (if more [] (:test options))
+                                         :limits (merge g/default-limits
+                                                        (select-keys options [:max-depth :max-steps :tries]))
+                                         :log (if (:trace options) log-decision (fn [_]))
+                                         :log-attempt log-attempt
+                                         :flow (if (:pick options) :pick :score))
+                  code (max code (report outcome (:out options) (not= spec (first arguments))))]
+              (if more
+                (recur more
+                       (cond-> solved
+                         (g/passed? outcome) (conj (library/entry spec (g/best outcome))))
+                       code)
+                code))))
         (catch clojure.lang.ExceptionInfo e
           (if (or (g/generation-error? e) (jev/jev-error? e))
             (do (err (str "cljjev: " (ex-message e)))

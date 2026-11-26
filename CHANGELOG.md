@@ -27,6 +27,20 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- Several `SPEC` arguments (`src/cljjev/library.clj`): `clojure -M:run "SPEC" "SPEC" ...` solves
+  them in turn, and every function that passes becomes an option for the later ones, as a call
+  where its kind fits and by name in a function slot. `--test` goes to the last `SPEC`, and
+  `--out` gets every program. A single `SPEC` runs as before, so the benchmark does not change. One
+  live run: `prime-sum` (sum of the primes below n) passed in 9 API calls after `prime?` (87
+  calls), and failed alone after 142.
+- Shrink (`shrink` in `src/cljjev/local.clj`, `hoists` in `mutate.clj`): a program that passes
+  every test loses the code the tests ran but never needed. Each expression is replaced by one of
+  its own parts where that is legal and drops only code some test ran, all are run in one batch
+  with no API call, and the largest part that still passes stays, until none does. Not yet run
+  live. Replayed on the passing programs of the six runs of 2026-10-21, scored with the hidden
+  checks: basic 14 and 14 of 15 before, 15 and 15 after (`power`); hard 11 and 11 of 14 before,
+  12 and 12 after (`largest`); held-out 11 and 11 of 12 before and after. No pass became an OVER,
+  and API calls do not change.
 - Local repair (`src/cljjev/local.clj`, `mutate.clj`, `batch.clj`): a failed program's small legal
   changes (a new subtree of up to three decisions, another operator, swapped arguments, a wrap) are
   ranked by Jev's build probabilities and up to 6000 run at once with no API call; one `Choice`

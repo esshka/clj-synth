@@ -46,14 +46,35 @@ clojure -M:run "write a recursive factorial of n (= 120 (factorial 5)) (= 1 (fac
 ### Command line
 
 ```bash
-clojure -M:run [options] "SPEC"
+clojure -M:run [options] "SPEC" ["SPEC" ...]
 ```
 
 The `(= ...)` forms inside `SPEC` become the tests; the remaining text is the description.
 
+**Divide a hard function into parts.** With several specifications, each is solved in turn, and
+every function that passes its tests becomes one more option for the ones after it, by call and by
+name. A hard function is then a few choices over its solved parts:
+
+```bash
+clojure -M:run \
+  "is n a prime number (= true (prime? 7)) (= false (prime? 8)) (= false (prime? 1))
+   (= true (prime? 2)) (= false (prime? 9)) (= false (prime? 15))" \
+  "sum of the prime numbers below n (= 17 (prime-sum 10)) (= 0 (prime-sum 2))
+   (= 5 (prime-sum 5)) (= 28 (prime-sum 12))"
+```
+
+```clojure
+(defn prime-sum [n]
+  (reduce + 0 (filter prime? (range 2 n))))
+```
+
+In one live run on 2026-11-26 the second function took 9 API calls after `prime?` took 87. The
+second specification alone failed after 142 calls: its best program was
+`(reduce + 0 (filter (fn [x] (< x n)) (range 2 n)))`. One run of each is a sample, not a score.
+
 | Option | Default | Description |
 | --- | --- | --- |
-| `--test FORM` | | Add a test form. Repeatable. |
+| `--test FORM` | | Add a test form to the last `SPEC`. Repeatable. |
 | `--mock` | | Use the deterministic mock policy instead of the API. |
 | `--trace` | | Print every decision to stderr: the hole, the chosen option and its probability. |
 | `--pick` | | Experimental repair flow: Jev picks each repair among concrete changes shown as code. |
@@ -61,10 +82,10 @@ The `(= ...)` forms inside `SPEC` become the tests; the remaining text is the de
 | `--max-depth N` | `8` | Deepest nesting at which compound forms are offered. |
 | `--max-steps N` | `48` | Maximum decisions per program. |
 | `--tries N` | `12` | Maximum programs built and tested. |
-| `--out FILE` | | Also write the program to `FILE`. |
+| `--out FILE` | | Also write the programs to `FILE`. |
 
-The program is printed to stdout; progress and test results go to stderr. The exit status is `0`
-when all tests pass (or no tests were run), `1` when tests fail, and `2` on error.
+Each program is printed to stdout; progress and test results go to stderr. The exit status is `0`
+when all tests pass (or no tests were run), `1` when tests of any `SPEC` fail, and `2` on error.
 
 ### REPL
 
@@ -115,7 +136,8 @@ never paid for twice.
 program the generator can build binds all its names, places `recur` only in tail position with the
 right arity, and calls functions with the right number of arguments. Local repair's changes are
 programs `build` could make too: a new subtree comes from `legal`, a moved one is checked against
-`legal` where it lands, and a test rebuilds every change of a sample program with `build`.
+`legal` where it lands, and a test rebuilds every change of a sample program with `build`. Shrink
+moves a part of the program the same way, checked against `legal` where it lands.
 
 **Validate at the boundary.** Every API answer is checked with `clojure.spec` against the type of
 the question it answers. A malformed answer fails immediately, with an error that names the
@@ -174,6 +196,13 @@ with `pr-str`, never assembled from strings.
    probability), with every later hole asked again, so the search can leave the first program's
    shape. Singles, pairs and restarts take turns. Up to `--tries` programs are tested, and
    duplicates are not counted.
+8. **Shrink.** A program that passes every test is read back, and each expression is replaced in
+   turn by one of its own parts, where `legal` allows that part there. A change may drop only
+   code that some test ran: code no test ran may be a guard, such as `(if (< n 2) false ...)` when
+   every test has `n` of 2 or more. The changes run in one batch with no API call. The largest part
+   that still passes every test stays, and this repeats until no part passes. Code the tests ran
+   but never needed is what fits them and nothing else:
+   `(max (first (rest xs)) (reduce max (first xs) (rest xs)))` becomes `(reduce max (first xs) xs)`.
 
 ## Project layout
 
@@ -184,7 +213,8 @@ with `pr-str`, never assembled from strings.
 | `src/cljjev/env.clj` | Pools from the specification; scope, tail position and recur arity at a path |
 | `src/cljjev/generate.clj` | Construction, scoring, edits and search |
 | `src/cljjev/mutate.clj` | Small legal changes to a finished program; `sites` reads a program back into its decisions |
-| `src/cljjev/local.clj` | Local repair: ranks and runs the changes, and asks Jev to pick among those that pass |
+| `src/cljjev/local.clj` | Local repair: ranks and runs the changes, and asks Jev to pick among those that pass. Shrink: removes what a passing program's tests never needed |
+| `src/cljjev/library.clj` | Solved functions as options for the next specifications, loaded by every runner |
 | `src/cljjev/batch.clj` | Runs thousands of programs on the same tests in a few `bb` processes |
 | `src/cljjev/trace.clj` | Re-runs each test with spies to record subtree values |
 | `src/cljjev/validate.clj` | Shape checks and out-of-process test runs |
@@ -241,6 +271,11 @@ specs with only two tests. The hard OVERs came from Jev's own edits, `power` fro
 Model answers vary between runs, so a single run is a sample rather than a score; compare changes
 over several runs.
 
+Shrink was added on 2026-11-26 and not yet run live. Replayed on the passing programs of these six
+runs, it changes four programs and all four go from OVER to a pass: `power` in both basic runs and
+`largest` in both hard runs. No pass becomes an OVER. That is basic 15 and 15 / 15, hard 12 and
+12 / 14, held unchanged. The order shrink tries parts in was chosen on `largest`, a hard spec.
+
 Flows compared on 2026-09-30, two runs each, before local repair and the hidden checks:
 
 | Flow | hard | held | basic |
@@ -275,9 +310,14 @@ there, though the normal test run passes it.
 0.5, so the same specification can pass in one run and fail in the next.
 
 **Weak tests can be satisfied by wrong programs.** With only `(= 55 (fib 10))`, the search once
-returned the sum 1 + 2 + … + n. With `(= 8 (power 2 3))` and `(= 1 (power 5 0))`, both the old and
-the new search return `power` with `(* (power b (quot e 2)) b)` for even `e`, which is wrong for
-`(power 2 4)`. Broad local search finds more such programs; Jev's pick among the passing ones
-rejects many of them but not all. The benchmark runs hidden checks the search never sees and
-reports such a program as OVER, not as a pass. Specifications should include tests that rule out
+returned the sum 1 + 2 + … + n. With `(= 8 (power 2 3))` and `(= 1 (power 5 0))`, the search builds
+`power` with `(* (power b (quot e 2)) b)` for even `e`, which is wrong for `(power 2 4)`; shrink
+removes that branch, because the tests ran it and pass without it. Shrink cannot help when no part
+of the program is right, as in the `dot` whose `(fn [acc x] ...)` never uses `acc`. It also
+follows a rule where the tests give no evidence: `(first (rest xs))` alone passes both tests of
+`largest`, and shrink keeps the `reduce` only because it is the larger part. Broad local search
+finds more such programs; Jev's pick among the passing ones rejects many of them but not all. The
+benchmark runs hidden checks the search never sees and reports such a program as OVER, not as a
+pass. With several specifications, a part that passes its tests but is wrong still joins the
+options, and the later functions build on it. Specifications should include tests that rule out
 shortcuts.

@@ -1,9 +1,11 @@
 (ns cljjev.local-test
   (:require [clojure.test :refer [deftest is]]
             [cljjev.batch :refer [run-batch]]
+            [cljjev.env :refer [extract]]
             [cljjev.generate :as g]
-            [cljjev.local :refer [fitness repair]]
-            [cljjev.test-support :refer [build fact-pools fact-spec limits script short-keys]]
+            [cljjev.local :refer [fitness repair shrink]]
+            [cljjev.test-support :refer [build fact-keys fact-pools fact-spec limits script
+                                         short-keys]]
             [cljjev.tree :refer [render]]
             [cljjev.validate :refer [run-tests runtime]]))
 
@@ -59,3 +61,39 @@
       (is (re-find #"^local: " (:edit (g/best out))))
       (is (zero? (:tested (g/solve fact-spec (script short-keys) :batch nil
                                    :limits (assoc limits :tries 1))))))))
+
+(deftest shrink-drops-what-the-tests-never-needed
+  (when (runtime)
+    (let [pools (extract "b raised to the power e (= 8 (power 2 3)) (= 1 (power 5 0))" [])
+          attempt (fn [pools code]
+                    {:code code :results (run-tests code (:tests pools)) :edit nil :depth 0})
+          log (atom [])
+          junk (attempt pools (str "(defn power [b e] (if (zero? e) 1 (* (if (even? e) "
+                                   "(power b (quot e 2)) (power b (dec e))) b)))"))
+          [kept out] (shrink run-batch pools limits #(swap! log conj %) [:earlier junk])
+          exact [(attempt fact-pools "(defn factorial [n] (if (<= n 1) 1 (* n (factorial (dec n)))))")]
+          failed [(attempt fact-pools "(defn factorial [n] (if (<= n 1) 1 (* n 1)))")]
+          two (extract "largest number in xs (= 9 (largest [3 9 2])) (= -1 (largest [-5 -1 -3]))" [])
+          both [(attempt two "(defn largest [xs] (max (first (rest xs)) (reduce max (first xs) (rest xs))))")]
+          one (extract "write a recursive factorial of n (= 1 (factorial 0))" [])
+          unrun [(attempt one "(defn factorial [n] (if (<= n 1) 1 (* n (factorial (dec n)))))")]]
+      (is (= :earlier kept))
+      (is (= '(defn power [b e] (if (zero? e) 1 (* (power b (dec e)) b))) (read-string (:code out))))
+      (is (every? :ok (:results out)))
+      (is (re-find #"^shrink of " (:edit out)))
+      (is (= [out] @log))
+      (is (= exact (shrink run-batch fact-pools limits (fn [_]) exact)))
+      (is (= failed (shrink run-batch fact-pools limits (fn [_]) failed)))
+      ;; both arguments of max pass alone; the larger one stays
+      (is (= '(defn largest [xs] (reduce max (first xs) xs))
+             (read-string (:code (peek (shrink run-batch two limits (fn [_]) both))))))
+      ;; the one test never runs the else branch, so it stays
+      (is (= unrun (shrink run-batch one limits (fn [_]) unrun))))))
+
+(deftest search-ends-with-a-shrunk-program
+  (when (runtime)
+    (let [keys (into ["[n]" "max" "lit:1"] (rest fact-keys))
+          out (g/solve fact-spec (script keys) :limits (assoc limits :tries 1))]
+      (is (g/passed? out))
+      (is (re-find #"\(if \(<= n 1\) 1 \(\* n \(factorial \(dec n\)\)\)\)\)\n$" (g/source (g/best out))))
+      (is (re-find #"^shrink of \(defn factorial \[n\] \(max 1 " (:edit (g/best out)))))))

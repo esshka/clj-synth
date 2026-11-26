@@ -317,6 +317,9 @@ footer { padding: 32px 0 48px; border-top: 1px solid var(--rule); color: var(--m
           edit rebuilds only its own subtree, and every other choice is replayed. The first
           program also gets a few restarts: a close runner-up at one decision, with every later
           slot asked again, so the search can try a different shape.</p></div></li>
+        <li><div><h3>Shrink</h3><p>A program that passes loses the code its tests ran but never
+          needed: each part is tried in place of the whole, with no question to the model, and the
+          largest part that still passes every test stays.</p></div></li>
       </ol>
       <div class="edit" aria-label="Example of a wrap edit">
         <div><p class="lbl">Tests fail for fib</p><pre>(fib (- n 1))</pre></div>
@@ -328,8 +331,8 @@ footer { padding: 32px 0 48px; border-top: 1px solid var(--rule); color: var(--m
 
     <section id="results">
       <h2>What it does today</h2>
-      <p class="lede" style="margin-top:16px">Two live runs of the latest version with the Jev
-        model, on three sets of specs. A program counts only if it also passes hidden tests the
+      <p class="lede" style="margin-top:16px">Two live runs with the Jev model, on three sets of
+        specs, from before the shrink step. A program counts only if it also passes hidden tests the
         search never sees. The model's answers change between runs, so results can differ.</p>
       <table>
         <thead><tr><th>Spec set</th><th>Passed</th><th>API calls per run</th></tr></thead>

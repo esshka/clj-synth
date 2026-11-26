@@ -1,12 +1,13 @@
 (ns cljjev.local
   "Local repair: every small change to a failed program is run in one batch, with no Jev
   call. Jev's option probabilities rank the changes, tests decide which pass, and one
-  Choice picks among those that do."
+  Choice picks among those that do. Shrink: a passing program loses what the tests ran
+  but never needed."
   (:require [clojure.edn :as edn]
             [clojure.string :as str]
             [cljjev.catalog :refer [ordered]]
-            [cljjev.mutate :refer [neighbors]]
-            [cljjev.tree :refer [flat node-at render]]))
+            [cljjev.mutate :refer [hoists neighbors]]
+            [cljjev.tree :refer [branch? flat node-at put-at read-all render]]))
 
 ;; new decisions per change, one entry per round; a round starts from the programs the
 ;; last one brought closest to passing. Only the first program gets more than one.
@@ -160,3 +161,49 @@
                               (map #(assoc % :edit (edit-of %))))
                          tested
                          hot)))))))
+
+(defn- size [tree]
+  (count (tree-seq branch? seq tree)))
+
+(defn- ran
+  "Returns the paths among paths whose expression some test evaluates: a throw put there
+  fails that test."
+  [batch tree tests paths]
+  (set (keep (fn [[path results]] (when-not (every? :ok results) path))
+             (map vector paths (batch (map #(put-at tree % '(throw (ex-info "ran" {}))) paths)
+                                      tests)))))
+
+(defn- hoisted
+  "Returns [tree results] with parts of tree hoisted while every test still passes."
+  [batch pools limits tree results]
+  (let [tests (:tests pools)
+        all (hoists tree pools limits)
+        ;; code no test ran may be a guard: (if (< n 2) false ...) when every test has n >= 2
+        ran? (ran batch tree tests (distinct (mapcat :dropped all)))
+        ;; ponytail: largest part first, since tests cannot rank two that pass: (first (rest xs))
+        ;; fits both tests of largest. Ask Jev to pick if this order gets one wrong.
+        cands (->> all (filter #(every? ran? (:dropped %))) (map :tree) distinct
+                   (sort-by (comp - size)))
+        win (first (filter #(every? :ok (second %)) (map vector cands (batch cands tests))))]
+    (if win
+      (recur batch pools limits (first win) (second win))
+      [tree results])))
+
+(defn shrink
+  "Returns attempts with the last one, when it passes every test, replaced by what is left
+  after hoisting its parts while every test still passes; log sees the new attempt. A hoist
+  drops only code some test ran. Code the tests ran but never needed is what fits them and
+  nothing else: the inner if of (* (if (even? e) (power b (quot e 2)) (power b (dec e))) b)
+  made (power 2 4) 8."
+  [batch pools limits log attempts]
+  (let [{:keys [results] :as a} (peek attempts)]
+    (if-not (and batch (seq results) (every? :ok results))
+      attempts
+      (let [start (first (read-all (:code a)))
+            [tree results] (hoisted batch pools limits start results)]
+        (if (= tree start)
+          attempts
+          (conj (pop attempts)
+                (doto (assoc a :code (render tree) :results results :decisions []
+                             :edit (str (some-> (:edit a) (str "; ")) "shrink of " (flat start)))
+                  log)))))))
