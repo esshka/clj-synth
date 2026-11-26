@@ -24,12 +24,10 @@ Planned work, highest priority first. Move an item to [CHANGELOG.md](CHANGELOG.m
   36 with Jev, so Jev's answers carry this search. That baseline starts from one tiny program and
   its small changes. A search that builds every small program from the inputs upward, and merges
   those that give the same values on the tests, is the fair rival and is not built.
-- [ ] **Stop shrink from cutting code that weak tests do not need.** In a `sure plan split` run the
-  search found the correct `longest`, and shrink cut `(max largest (collatz up))` down to
-  `(collatz up)`: every test of `longest` has its longest start last, so the tests pass without the
-  `max`. The program then failed the hidden checks. Shrink removes junk on `power` and `largest`
-  and removes sense here, and the tests cannot tell the two apart; Jev could be asked before a
-  cut is kept.
+- [ ] **Give a shrink a look when its programs differ in a yes or no.** With `--sure` a cut is undone
+  when the programs before and after it give different numbers and Jev backs the number from
+  before (the `max` in `longest`). Two programs that differ only in true and false, or only in a
+  collection, get no look, and without `--sure` shrink is as before.
 - [ ] **The `split` score is about 5 of 8 and its passes move.** Six runs with parts gave 4, 5, 5, 5,
   6 and 5. `prime?`, `lcm` and `choose` each pass in some runs and fail in others, so one run
   cannot show the effect of a change. Compare changes over several runs, or on single functions

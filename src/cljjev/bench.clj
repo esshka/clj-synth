@@ -16,7 +16,7 @@
             [cljjev.generate :as g]
             [cljjev.jev :as jev]
             [cljjev.library :as library]
-            [cljjev.oracle :refer [second-look sure-tests]]
+            [cljjev.oracle :as oracle :refer [second-look shrink-look sure-tests]]
             [cljjev.policy :refer [flat-policy mock-policy]]
             [cljjev.report :as report]
             [cljjev.validate :refer [run-tests]]
@@ -175,12 +175,17 @@
   [spec source]
   (every? :ok (run-tests source (get checks (first (:names (extract spec [])))))))
 
+(defn- hidden-call?
+  "Returns a predicate: is this call of spec's function in one of its hidden checks?"
+  [spec]
+  (let [hidden (str/join " " (get checks (first (:names (extract spec [])))))]
+    #(str/includes? hidden %)))
+
 (defn without-checks
   "Returns the tests of asked, Jev's sure answers for spec, whose call is in no hidden check.
   Jev's fixed inputs hold check inputs, and a check the search has seen is not hidden."
   [spec asked]
-  (let [hidden (str/join " " (get checks (first (:names (extract spec [])))))]
-    (vec (remove #(str/includes? hidden (second (re-find #"^\(= \S+ (.+)\)$" %))) asked))))
+  (vec (remove #((hidden-call? spec) (second (re-find #"^\(= \S+ (.+)\)$" %))) asked)))
 
 (defn- run-spec
   "Solves spec with a fresh policy and the functions of solved on offer, and prints one
@@ -201,14 +206,18 @@
                                 sure (without-checks spec (sure-tests spec policy))
                                 :else [])
                     questions (if plan? (wording/questions spec policy solved) {})
-                    out (second-look (library/solve spec policy solved :flow flow :tests asked
-                                                    :questions questions)
-                                     spec asked policy)
+                    sources (apply str (map :source solved))
+                    out (cond-> (second-look (library/solve spec policy solved :flow flow :tests asked
+                                                            :questions questions)
+                                             spec asked policy)
+                          sure (shrink-look spec policy sources
+                                            (remove (hidden-call? spec) (oracle/calls spec))))
                     source (g/source (g/best out))
                     passed (g/passed? out)]
                 {:passed passed :asked asked :dropped (:dropped out)
                  :wording (when (seq questions) "last step")
-                 :checked (and passed (checked? spec (str (apply str (map :source solved)) source)))
+                 :uncut (:uncut out)
+                 :checked (and passed (checked? spec (str sources source)))
                  :tested (:tested out) :edit (:edit (g/best out))
                  :program (str/join " " (drop 2 (str/split (str/trim source) #"\s+")))})
               (catch Exception e

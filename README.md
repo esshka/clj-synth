@@ -127,7 +127,8 @@ program fails only one of Jev's number tests, Jev gets a second look: it sees it
 program's number, and if it leaves its first answer, that test is dropped. When the best program
 gives an error on one of Jev's tests, Jev is asked if that input is of the same kind as the
 spec's examples, and a test outside them is dropped: `(= 0 (choose 4 6))` when every example has
-k at most n.
+k at most n. A shrink gets the same kind of look: if the program before the cut gives another
+number for some input and Jev backs that number, the cut is undone.
 
 **Programs are data.** A program is plain Clojure data (lists, vectors, symbols and numbers) that
 is read by the Clojure reader and printed back. An unfilled slot is a map such as
@@ -337,6 +338,13 @@ as `(if (< n k) 0 1)`), so `choose` has passed in 2 of 4 runs with both options.
 shows shrink doing harm: the search found the correct `longest`, with
 `(recur (inc up) (max largest (collatz up)))`, and shrink cut the `max`, because the four tests
 of `longest` pass without it. The hidden checks then failed the program.
+
+So with `--sure` a shrink now gets a look too. The programs before and after the cut are run on
+the fixed inputs; where they give different numbers, Jev sees both numbers for up to three inputs
+and the cut is undone when Jev backs the numbers from before it more often. In a probe Jev backed
+the uncut `longest` on 3 of 3 inputs and the cut `power` on 3 of 3. Replayed on the seven saved
+programs that shrink changed, it asks once, for that `longest`, and undoes the cut, so that run
+is 6 of 8; the other six cuts change no number on the fixed inputs and stay.
 
 One live run of each on 2026-11-26: 4 of 8 main functions passed after their parts (558 API calls,
 parts included) and 4 of 8 alone (528 calls). The same four passed both ways (`digital-root`,

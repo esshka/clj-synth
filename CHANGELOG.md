@@ -27,6 +27,12 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- With `--sure`, a shrink gets a look (`shrink-look` in `src/cljjev/oracle.clj`): where the
+  programs before and after the cut give different numbers for a fixed input, Jev sees both, and
+  the cut is undone when Jev backs the numbers from before it. Shrink had cut the `max` out of a
+  correct `longest`, because its four tests pass without it. Replayed on the seven saved programs
+  that shrink changed, it asks once and undoes that cut: `sure plan split` 5 of 8 before, 6 after.
+
 - The second look also checks the domain of Jev's tests (`domain-look` in
   `src/cljjev/oracle.clj`): when the best program passes the spec's tests and gives an error on
   one of Jev's, Jev is asked if that input is of the kind the spec's examples show, and a test

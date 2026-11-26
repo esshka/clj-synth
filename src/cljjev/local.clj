@@ -191,7 +191,8 @@
 
 (defn shrink
   "Returns attempts with the last one, when it passes every test, replaced by what is left
-  after hoisting its parts while every test still passes; log sees the new attempt. A hoist
+  after hoisting its parts while every test still passes, :from holding the code before;
+  log sees the new attempt. A hoist
   drops only code some test ran. Code the tests ran but never needed is what fits them and
   nothing else: the inner if of (* (if (even? e) (power b (quot e 2)) (power b (dec e))) b)
   made (power 2 4) 8."
@@ -204,6 +205,6 @@
         (if (= tree start)
           attempts
           (conj (pop attempts)
-                (doto (assoc a :code (render tree) :results results :decisions []
+                (doto (assoc a :code (render tree) :results results :decisions [] :from (:code a)
                              :edit (str (some-> (:edit a) (str "; ")) "shrink of " (flat start)))
                   log)))))))

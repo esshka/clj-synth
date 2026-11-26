@@ -6,7 +6,7 @@
             [cljjev.generate :as g]
             [cljjev.jev :as jev]
             [cljjev.library :as library]
-            [cljjev.oracle :refer [second-look sure-tests]]
+            [cljjev.oracle :as oracle :refer [second-look shrink-look sure-tests]]
             [cljjev.policy :refer [mock-policy]]
             [cljjev.wording :as wording]))
 
@@ -127,6 +127,12 @@
                   outcome (second-look outcome spec asked policy)
                   _ (doseq [t (:dropped outcome)]
                       (err (str "dropped Jev's test " t " after a second look")))
+                  outcome (if (:sure options)
+                            (shrink-look outcome spec policy (apply str (map :source solved))
+                                         (oracle/calls spec))
+                            outcome)
+                  _ (when (:uncut outcome)
+                      (err "undid the shrink: Jev backs the program before the cut"))
                   code (max code (report outcome (:out options) (not= spec (first arguments))))]
               (if more
                 (recur more

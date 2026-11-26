@@ -5,7 +5,8 @@
   (:require [clojure.string :as str]
             [cljjev.catalog :refer [ordered]]
             [cljjev.env :refer [extract]]
-            [cljjev.generate :as g]))
+            [cljjev.generate :as g]
+            [cljjev.validate :refer [run-tests]]))
 
 ;; an answer below this is no test
 (def ^:private sure 0.9)
@@ -105,6 +106,14 @@
         (without (update outcome :calls inc)
                  (for [{:keys [test]} errors :when (< (get-in answers [test "noul"] 1.0) backed)] test))))))
 
+(defn- two-answers
+  "The question that shows two numbers given for call."
+  [call a b]
+  {:type "choice"
+   :instructions (str "Two answers were given for " call ". Which number is it?")
+   :criteria (ordered (concat (for [n (sort [(parse-long a) (parse-long b)])] [(str n) (str n)])
+                              [["other" "another number"]]))})
+
 (defn- value-look
   "Drops the one number test the best program fails when Jev, shown the program's number
   beside its own, no longer backs its first answer, as with (= 35 (square-sum 5))."
@@ -114,13 +123,7 @@
         [_ first-answer got] (some->> detail (re-find #"^FAIL expected (-?\d+), got (-?\d+)$"))]
     (if-not (and (= 1 (count failed)) got)
       outcome
-      (let [options (ordered (concat (for [n (sort [(parse-long first-answer) (parse-long got)])]
-                                       [(str n) (str n)])
-                                     [["other" "another number"]]))
-            answer (get (policy (about spec)
-                                {"look" {:type "choice" :criteria options
-                                         :instructions (str "Two answers were given for " (call-of test)
-                                                            ". Which number is it?")}})
+      (let [answer (get (policy (about spec) {"look" (two-answers (call-of test) first-answer got)})
                         "look")]
         (without (update outcome :calls inc)
                  (when (< (get-in answer ["probabilities" first-answer] 0.0) backed) [test]))))))
@@ -136,3 +139,43 @@
   (-> outcome
       (domain-look spec asked policy)
       (value-look spec asked policy)))
+
+(defn calls
+  "Returns a call of the function of spec for each fixed input of its signature."
+  [spec]
+  (let [pools (extract spec [])
+        name (first (:names pools))]
+    (mapv #(str "(" name " " % ")") (inputs (get-in pools [:param-kinds name])))))
+
+(defn- numbers
+  "Returns what code gives for each of calls, as text, nil where it is not a number."
+  [sources code calls]
+  (for [r (run-tests (str sources (g/source {:code code})) (map #(str "(= :cljjev/none " % ")") calls))]
+    (second (re-find #"^FAIL expected :cljjev/none, got (-?\d+)$" (:detail r)))))
+
+(defn shrink-look
+  "Returns outcome with the best program put back to its code before shrink, and :uncut
+  true, when the two give different numbers for some of calls and Jev backs the numbers
+  from before the cut more often. Shrink cuts what the tests do not need, and weak tests do
+  not need the max in (max largest (collatz up)). sources holds the functions the program
+  calls; at most three calls are asked, in one request."
+  [outcome spec policy sources calls]
+  (let [best (g/best outcome)
+        differ (when (:from best)
+                 (take 3 (for [[call before after] (map vector calls
+                                                        (numbers sources (:from best) calls)
+                                                        (numbers sources (:code best) calls))
+                               :when (and before after (not= before after))]
+                           [call before after])))]
+    (if (empty? differ)
+      outcome
+      (let [answers (policy (about spec)
+                            (ordered (for [[call before after] differ] [call (two-answers call before after)])))
+            backs (fn [pick] (count (filter (fn [[call & pair]]
+                                              (>= (get-in answers [call "probabilities" (pick pair)] 0.0) backed))
+                                            differ)))
+            at (.indexOf ^java.util.List (:attempts outcome) best)]
+        (cond-> (update outcome :calls inc)
+          (> (backs first) (backs second))
+          (-> (assoc :uncut true)
+              (update-in [:attempts at] assoc :code (:from best))))))))

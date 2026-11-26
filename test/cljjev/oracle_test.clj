@@ -1,7 +1,8 @@
 (ns cljjev.oracle-test
   (:require [clojure.test :refer [deftest is]]
             [cljjev.generate :as g]
-            [cljjev.oracle :refer [second-look sure-tests]]))
+            [cljjev.oracle :refer [calls second-look shrink-look sure-tests]]
+            [cljjev.validate :refer [runtime]]))
 
 (deftest sure-answers-become-tests
   (let [asked (atom nil)
@@ -70,3 +71,31 @@
     (is (= [outside] (:dropped looked)))
     (is (= [inside] (map :test (remove :ok (:results (g/best looked))))))
     (is (= 4 (:calls looked)))))
+
+(deftest a-shrink-jev-does-not-back-is-undone
+  (when (runtime)
+    (let [spec "b raised to the power e (= 8 (power 2 3)) (= 1 (power 5 0))"
+          before "(defn power [b e] (if (zero? e) 1 (* (if (even? e) (power b (quot e 2)) (power b (dec e))) b)))"
+          after "(defn power [b e] (if (zero? e) 1 (* (power b (dec e)) b)))"
+          outcome {:calls 5 :attempts [{:code after :from before :results [{:ok true} {:ok true}]}]}
+          asked (atom nil)
+          ;; backs the larger number, which the program after the cut gives, or the smaller
+          backing (fn [pick] (fn [_ questions]
+                               (reset! asked questions)
+                               (into {} (for [[call q] questions]
+                                          [call {"type" "choice"
+                                                 "probabilities" {(pick (keys (:criteria q))) 0.9}}]))))
+          kept (shrink-look outcome spec (backing second) "" (calls spec))
+          undone (shrink-look outcome spec (backing first) "" (calls spec))]
+      ;; the two programs differ at (power 4 6): 256 and 4096
+      (is (= ["256" "4096" "other"] (keys (get-in @asked ["(power 4 6)" :criteria]))))
+      (is (<= (count @asked) 3))
+      (is (= after (:code (g/best kept))))
+      (is (nil? (:uncut kept)))
+      (is (= before (:code (g/best undone))))
+      (is (:uncut undone))
+      (is (= 6 (:calls undone)))
+      ;; a program that was not shrunk gets no look
+      (is (= {:calls 1 :attempts [{:code after :results [{:ok true}]}]}
+             (shrink-look {:calls 1 :attempts [{:code after :results [{:ok true}]}]} spec
+                          (fn [_ _] (throw (ex-info "asked" {}))) "" (calls spec)))))))
