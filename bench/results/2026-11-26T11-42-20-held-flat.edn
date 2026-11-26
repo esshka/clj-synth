@@ -1,0 +1,126 @@
+{:date "2026-11-26T11:42:20.700026",
+ :set "held-flat",
+ :flow :score,
+ :mock false,
+ :runs
+ [[{:passed false,
+    :edit nil,
+    :parts [],
+    :seconds 3.6580865,
+    :spec
+    "product of the numbers in xs (= 24 (product [1 2 3 4])) (= 1 (product []))",
+    :checked false,
+    :calls 40,
+    :program "(defn product [numbers] 0)",
+    :tested 7866}
+   {:passed false,
+    :edit nil,
+    :parts [],
+    :seconds 2.986654334,
+    :spec
+    "smallest number in xs (= 1 (smallest [3 1 2])) (= -4 (smallest [-4 0 5]))",
+    :checked false,
+    :calls 40,
+    :program "(defn smallest [number] 0)",
+    :tested 7940}
+   {:passed true,
+    :edit "local: `defn body`: 0 -> (count (rest negative))",
+    :parts [],
+    :seconds 0.227790375,
+    :spec
+    "count the negative numbers in xs (= 2 (count-neg [-1 2 -3])) (= 0 (count-neg [1]))",
+    :checked false,
+    :calls 3,
+    :program "(defn count-neg [negative] (count (rest negative)))",
+    :tested 482}
+   {:passed false,
+    :edit "`defn body`: wrap lit:0 in (+ ...)",
+    :parts [],
+    :seconds 1.446488959,
+    :spec
+    "sum of the numbers from 1 to n (= 15 (sum-to 5)) (= 0 (sum-to 0)) (= 1 (sum-to 1))",
+    :checked false,
+    :calls 40,
+    :program "(defn sum-to [sum] (+ 0 sum))",
+    :tested 2725}
+   {:passed false,
+    :edit nil,
+    :parts [],
+    :seconds 2.881307417,
+    :spec
+    "double every number in xs (= [2 4] (doubled [1 2])) (= [] (doubled []))",
+    :checked false,
+    :calls 40,
+    :program "(defn doubled [double] 0)",
+    :tested 7748}
+   {:passed true,
+    :edit "local: `defn body`: 0 -> (every? even? every)",
+    :parts [],
+    :seconds 0.211535208,
+    :spec
+    "is every number in xs even (= true (all-even? [2 4])) (= false (all-even? [2 3])) (= true (all-even? []))",
+    :checked true,
+    :calls 3,
+    :program "(defn all-even? [every] (every? even? every))",
+    :tested 482}
+   {:passed false,
+    :edit nil,
+    :parts [],
+    :seconds 3.609845083,
+    :spec
+    "number of decimal digits of n (= 3 (digits 123)) (= 1 (digits 7)) (= 2 (digits 10))",
+    :checked false,
+    :calls 40,
+    :program "(defn digits [number] 0)",
+    :tested 10912}
+   {:passed false,
+    :edit nil,
+    :parts [],
+    :seconds 5.195892875,
+    :spec
+    "drop the first n items of xs (= [3] (drop-n 2 [1 2 3])) (= [1 2] (drop-n 0 [1 2])) (= [] (drop-n 5 [1]))",
+    :checked false,
+    :calls 40,
+    :program "(defn drop-n [drop n] 0)",
+    :tested 17599}
+   {:passed true,
+    :edit "local: `defn body`: 0 -> (filter pos? remove)",
+    :parts [],
+    :seconds 0.169895375,
+    :spec
+    "remove the zeros from xs (= [1 2] (no-zeros [0 1 0 2])) (= [] (no-zeros [0]))",
+    :checked true,
+    :calls 3,
+    :program "(defn no-zeros [remove] (filter pos? remove))",
+    :tested 482}
+   {:passed false,
+    :edit nil,
+    :parts [],
+    :seconds 2.730639125,
+    :spec
+    "sum of the squares from 1 to n (= 14 (square-sum 3)) (= 0 (square-sum 0))",
+    :checked false,
+    :calls 40,
+    :program "(defn square-sum [sum] 0)",
+    :tested 9136}
+   {:passed true,
+    :edit "local: `defn body`: 0 -> (inc (first second))",
+    :parts [],
+    :seconds 0.2134965,
+    :spec
+    "the second item of xs (= 2 (second-item [1 2 3])) (= 9 (second-item [8 9]))",
+    :checked false,
+    :calls 3,
+    :program "(defn second-item [second] (inc (first second)))",
+    :tested 482}
+   {:passed true,
+    :edit
+    "local: `defn body`: 0 -> (count (rest largest)); `defn body`: (count (rest largest)) -> (* (count (rest largest)) 2)",
+    :parts [],
+    :seconds 0.298034875,
+    :spec
+    "largest minus smallest number in xs (= 4 (spread [3 1 5])) (= 0 (spread [7]))",
+    :checked false,
+    :calls 3,
+    :program "(defn spread [largest] (* (count (rest largest)) 2))",
+    :tested 614}]]}

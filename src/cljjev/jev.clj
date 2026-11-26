@@ -19,7 +19,8 @@
 ;; JSON answers keep string keys, so each field is checked on its own
 (def ^:private answer-fields
   {"choice" {"choice" ::choice "probabilities" ::probabilities}
-   "score" {"score" ::score}})
+   "score" {"score" ::score}
+   "noul" {"noul" ::score}})
 
 (defn jev-error?
   "Returns true if e was thrown by a failed API call or a malformed answer."

@@ -14,6 +14,16 @@ Planned work, highest priority first. Move an item to [CHANGELOG.md](CHANGELOG.m
   - `longest` returns `(collatz n)`, which fits its four tests. Its spec needs a test where the
     longest start is not the last one.
   - The call around a part passed offline for `lcm` and has no live pass yet.
+- [ ] **Which forms a solution uses: probed, not sharp.** On 2026-11-26 one request per basic and
+  hard spec and per `split` main asked a yes or no question for each catalog form: does a correct
+  program use it? Scored against one known answer per spec, at 0.3 or more the mean recall was 0.94,
+  with every needed form for 28 of 37 specs and a median of 20 of 46 forms kept. At 0.1 nothing
+  is missed and 37 forms stay; at 0.5 only 8 stay and the recall is 0.67. So the answers cannot cut
+  the forms a search has to try; at most they rank them.
+- [ ] **A stronger search with no model.** `clojure -M:bench flat` passes 6 of 41 functions against
+  36 with Jev, so Jev's answers carry this search. That baseline starts from one tiny program and
+  its small changes. A search that builds every small program from the inputs upward, and merges
+  those that give the same values on the tests, is the fair rival and is not built.
 - [ ] **Let Jev divide: probed, not built.** Several `SPEC` arguments let a person split a hard
   function into parts (`src/cljjev/library.clj`). On 2026-11-26 a split by Jev was probed on the
   mains of the `split` set. Jev picked words of the spec and a shape for a helper (for example
@@ -40,14 +50,18 @@ Planned work, highest priority first. Move an item to [CHANGELOG.md](CHANGELOG.m
   loop, every?). A fitting recursion shape sharpened the first pick (`size` 0.27 to 0.59), but it
   also pulled `rev`, `count-evens` and `count-above` off `reduce`, and the fold shape got under
   0.1. Do not add shapes without a rule for when to offer them.
-- [ ] **Guard every passing program on two-test specs.** All OVER programs so far (`power`,
-  `largest`, `dot`) came from specs with two tests, where no test can be held out; Jev's own edits
-  made three of them and local repair one. Showing Jev each program's outputs on new inputs did
-  not help: it still picked `power` with `(power 2 4)` = 8, at p = 0.93 against 0.06 for none.
-  Generating extra inputs whose answer follows from the spec is the open problem. Shrink now
-  removes code the tests ran but never needed (`power` and `largest` in a replay, no live run
-  yet). It does not help `dot`, where no part is right, and when two parts each pass alone it
-  keeps the larger one by rule, not by evidence.
+- [ ] **Make Jev's tests safe enough to be the default.** `--sure` adds Jev's sure answers as tests.
+  In one live run of each set it removed every program that only fits its tests on basic, hard and
+  held (`power`, `largest`, `dot` passed), and it cost one pass on held: `(= 35 (square-sum 5))` is
+  wrong and failed a correct program. Open points:
+  - One wrong test fails a right program. A program that passes the spec's tests and all of
+    Jev's tests but one could be shown to Jev, or the one test asked again.
+  - Outside the domain of a spec Jev answers by mathematics: `(= 0 (choose 4 6))`.
+  - A function that returns a collection gets no tests, and a number above 40 is not on offer, so
+    `(power 2 8)` is never asked. Shrink still covers `power`.
+  - `longest` got one test and is still returned as `(collatz n)`.
+  - One run of each set is a sample. The held set lost a pass, so this needs more runs before a
+    change of the default.
 - [ ] **Repair bugs that need two distant changes.** Local repair fixes a program one small change
   away, or two when the first already brings it closer to passing. Two changes far apart that only
   help together are left to Jev's pair edits, which are few.

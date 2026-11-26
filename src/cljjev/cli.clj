@@ -6,6 +6,7 @@
             [cljjev.generate :as g]
             [cljjev.jev :as jev]
             [cljjev.library :as library]
+            [cljjev.oracle :refer [sure-tests]]
             [cljjev.policy :refer [mock-policy]]))
 
 (defn- dotenv
@@ -35,6 +36,7 @@
      [nil "--mock" "use the local mock policy, not the API"]
      [nil "--trace" "print every Choice to stderr"]
      [nil "--pick" "let Jev pick each repair among concrete changes (experimental)"]
+     [nil "--sure" "ask Jev what the function returns for more inputs; its sure answers are tests"]
      [nil "--model MODEL" "Jev model" :default "jev-latest"]
      (limit "--max-depth N" "deepest nesting for compound forms" :max-depth)
      (limit "--max-steps N" "decisions per program" :max-steps)
@@ -103,8 +105,10 @@
           (loop [[spec & more] arguments
                  solved []
                  code 0]
-            (let [solve #(library/solve spec policy solved
-                                        :tests (if more [] (:test options))
+            (let [asked (if (:sure options) (sure-tests spec policy) [])
+                  _ (when (seq asked) (err (str "tests from Jev: " (str/join " " asked))))
+                  solve #(library/solve spec policy solved
+                                        :tests (into asked (if more [] (:test options)))
                                         :limits (merge g/default-limits
                                                        (select-keys options [:max-depth :max-steps :tries]))
                                         :log (if (:trace options) log-decision (fn [_]))

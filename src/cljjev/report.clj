@@ -70,7 +70,9 @@
             "`bench/results/`. Do not edit it by hand.")
        (str "PASS: the program passes the spec's tests and hidden checks the search never sees. "
             "OVER: it passes only the spec's tests. FAIL: it fails a test of the spec. "
-            "Model answers change between runs, so one run is a sample, not a score.")]
+            "Model answers change between runs, so one run is a sample, not a score. "
+            "A set named `<set>-flat` ran with no model: every option had the same probability, "
+            "and its API calls are questions that code answered.")]
       (when-let [split (latest "split")]
         ["## Hard functions: after their parts and alone"
          (str "Each main function is solved after its parts, which are then options for it ("

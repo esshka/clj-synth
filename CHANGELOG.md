@@ -27,6 +27,21 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- `--sure` and `clojure -M:bench sure <set>` (`src/cljjev/oracle.clj`): one more request asks Jev
+  what the function returns for fixed inputs, and each answer at 0.9 or more becomes a test, so
+  two weak tests no longer judge alone. One live run of each set against the earlier scores:
+  basic 15 of 15 (was 14 and 14, 15 with shrink replayed), hard 13 of 14 (was 11 and 11, 12
+  replayed), held 10 of 12 (was 11 and 11), split 5 of 8 (was 5), with no program that only fits
+  its tests on basic, hard and held. API calls 221, 426, 426 and 875 (were about 140, 385, 350 and
+  707). Of Jev's 257 tests one is wrong, `(= 35 (square-sum 5))`, and it failed a correct program
+  on the held set; so the option is off by default. A function that returns a collection gets no
+  tests.
+
+- `clojure -M:bench flat <set>` (`flat-policy` in `src/cljjev/policy.clj`): the same search with
+  no model, every option at the same probability, saved as `<set>-flat`. It measures what Jev
+  adds. One run of each set: basic 3 of 15, hard 1 of 14, held 2 of 12, against 14, 11 and 11 with
+  Jev; 14 more of the no-model programs only fit their spec's tests.
+
 - Local repair grows a call around a solved part (`grown` in `src/cljjev/mutate.clj`): the part
   may be any argument, and the other arguments are built from locals, so `(gcd a b)` becomes
   `(quot (* a b) (gcd a b))` with no API call. It is active only when parts are on offer, so

@@ -1,11 +1,13 @@
 (ns cljjev.bench-test
-  (:require [clojure.test :refer [deftest is]]
+  (:require [clojure.string :as str]
+            [clojure.test :refer [deftest is]]
             [cljjev.batch :refer [run-batch]]
             [cljjev.bench :as b]
             [cljjev.env :refer [extract with-library]]
             [cljjev.generate :as g]
             [cljjev.library :as library]
             [cljjev.mutate :refer [sites]]
+            [cljjev.oracle :refer [sure-tests]]
             [cljjev.tree :refer [read-all]]
             [cljjev.validate :refer [run-tests runtime]]))
 
@@ -50,3 +52,20 @@
                   (conj solved (library/entry spec {:code code}))))
               []
               chain))))
+
+(deftest hidden-checks-stay-hidden-from-jevs-tests
+  ;; a policy that is sure of every answer, so every fixed input becomes a test
+  (let [sure (fn [_ questions]
+               (into {} (for [[k q] questions]
+                          [k (if (= "noul" (:type q))
+                               {"type" "noul" "noul" 1.0}
+                               {"type" "choice" "choice" "0" "probabilities" {"0" 1.0}})])))]
+    (doseq [spec (concat b/basic b/hard b/held (apply concat b/split))
+            :let [name (first (:names (extract spec [])))
+                  hidden (apply str (b/checks name))
+                  calls (map #(second (re-find #"^\(= \S+ (.+)\)$" %))
+                             (b/without-checks spec (sure-tests spec sure)))]]
+      (is (not-any? #(str/includes? hidden %) calls) name))
+    ;; both checks of dot are among the fixed inputs
+    (is (= 2 (- (count (sure-tests (b/hard 8) sure))
+                (count (b/without-checks (b/hard 8) (sure-tests (b/hard 8) sure))))))))

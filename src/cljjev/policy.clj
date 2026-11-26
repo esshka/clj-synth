@@ -78,6 +78,10 @@
             leaf (and (map? ins) (not (str/includes? (get ins :subtree "(") "(")))]
         {"type" "score" "score" (if leaf 1.0 2.0) "confidence" 0.5})
 
+      ;; yes or no: the mock is never sure
+      (= (:type q) "noul")
+      {"type" "noul" "noul" 0.5}
+
       ;; keep / replace / wrap: the mock cannot judge, so it never wraps
       (contains? criteria "replace")
       {"type" "choice" "choice" "replace" "confidence" 0.9
@@ -98,3 +102,17 @@
   []
   (fn [state questions]
     (into {} (for [[qid q] questions] [qid (answer state q)]))))
+
+(defn flat-policy
+  "Returns the no-model policy: every option of a Choice has the same probability and the
+  first is the pick, as a tie gives; a Score is the middle of its levels and a Noul is 0.5.
+  The search then runs on code and tests alone, which measures what Jev adds."
+  []
+  (fn [_ questions]
+    (into {} (for [[qid q] questions
+                   :let [options (keys (:criteria q))]]
+               [qid (case (:type q)
+                      "score" {"type" "score" "score" (/ (dec (count (:criteria q))) 2.0)}
+                      "noul" {"type" "noul" "noul" 0.5}
+                      {"type" "choice" "choice" (first options)
+                       "probabilities" (zipmap options (repeat (/ 1.0 (count options))))})]))))

@@ -81,6 +81,7 @@ on the `split` benchmark set of eight such functions, as many passed alone as af
 | `--mock` | | Use the deterministic mock policy instead of the API. |
 | `--trace` | | Print every decision to stderr: the hole, the chosen option and its probability. |
 | `--pick` | | Experimental repair flow: Jev picks each repair among concrete changes shown as code. |
+| `--sure` | | One more request asks what the function returns for fixed inputs; each answer Jev is sure of becomes a test. |
 | `--model MODEL` | `jev-latest` | Jev model to query. |
 | `--max-depth N` | `8` | Deepest nesting at which compound forms are offered. |
 | `--max-steps N` | `48` | Maximum decisions per program. |
@@ -118,6 +119,9 @@ model.
 **Tests are the only judge.** Model confidence never marks a program as correct. Correctness is
 decided by running the specification's tests in a real Clojure runtime. When several changed
 programs pass, Jev only picks the one that implements the specification, or rejects them all.
+With `--sure`, Jev also writes tests: an answer at 0.9 or more to "what is `(largest [3 1 2])`?"
+becomes a test. A test can only reject a program, so a wrong answer can make a right program
+fail, and then the exit status is `1` because of a test the user did not write.
 
 **Programs are data.** A program is plain Clojure data (lists, vectors, symbols and numbers) that
 is read by the Clojure reader and printed back. An unfilled slot is a map such as
@@ -220,6 +224,7 @@ with `pr-str`, never assembled from strings.
 | `src/cljjev/mutate.clj` | Small legal changes to a finished program; `sites` reads a program back into its decisions |
 | `src/cljjev/local.clj` | Local repair: ranks and runs the changes, and asks Jev to pick among those that pass. Shrink: removes what a passing program's tests never needed |
 | `src/cljjev/library.clj` | Solved functions as options for the next specifications, loaded by every runner |
+| `src/cljjev/oracle.clj` | Asks Jev what a function returns for fixed inputs; its sure answers become tests |
 | `src/cljjev/batch.clj` | Runs thousands of programs on the same tests in a few `bb` processes |
 | `src/cljjev/trace.clj` | Re-runs each test with spies to record subtree values |
 | `src/cljjev/validate.clj` | Shape checks and out-of-process test runs |
@@ -252,7 +257,7 @@ change in [CHANGELOG.md](CHANGELOG.md) as described there. Planned work is track
 
 ## Benchmark
 
-`clojure -M:bench [--mock] [pick] [--runs N] [basic|hard|held|split|whole]` runs 15 basic, 14
+`clojure -M:bench [--mock|flat] [pick] [sure] [--runs N] [basic|hard|held|split|whole]` runs 15 basic, 14
 harder or 12 held-out specifications (never used for tuning) N times, reports the pass rate and
 the number of API calls of each run with their median and range, and writes every run to
 `bench/results/`. A program passes only if it also passes hidden checks (`checks` in
@@ -263,6 +268,39 @@ checks is reported as OVER.
 parts on offer; `whole` runs the same eight main functions alone. Every run writes
 [BENCHMARKS.md](BENCHMARKS.md) again from `bench/results/`: for each set, every function's result,
 API calls and program.
+
+`flat` runs a set with no model: every option of a question has the same probability and the first
+one is the pick, so the search runs on code and tests alone. It makes no API call. One run of each
+set on 2026-11-26, beside the two live runs of 2026-10-21 with Jev:
+
+| Set | Jev: passed | No model: passed | No model: only fit the tests |
+| --- | --- | --- | --- |
+| basic | 14 and 14 / 15 | 3 / 15 | 4 |
+| hard | 11 and 11 / 14 | 1 / 14 | 7 |
+| held | 11 and 11 / 12 | 2 / 12 | 3 |
+
+Jev's answers carry the search: without them it passes 6 of 41 functions, and 14 more of its
+programs only fit the tests, such as `(first (rest number))` for `largest`. This is the search of
+this project with its model taken out, not the best search that needs no model.
+
+`sure` adds Jev's sure answers to each spec's tests (the `--sure` option) and saves the set as
+`<set>-sure`. A test whose call is in a hidden check is dropped first, so the checks stay hidden.
+One live run of each set on 2026-11-26, beside the earlier scores (for basic, hard and held the
+two runs of 2026-10-21, with the shrink replay in brackets):
+
+| Set | Without | With `sure` | Only fit the tests | API calls |
+| --- | --- | --- | --- | --- |
+| basic | 14 and 14 (15) / 15 | 15 / 15 | 0 | 221, was 138 to 140 |
+| hard | 11 and 11 (12) / 14 | 13 / 14 | 0 | 426, was 378 to 389 |
+| held | 11 and 11 (11) / 12 | 10 / 12 | 0 | 426, was 325 to 375 |
+| split | 5 / 8 | 5 / 8 | 1 | 875, was 707 |
+
+Jev wrote 257 tests for 47 of the 58 functions. Checked against known correct programs, 248 of the
+251 that could be checked agree with them, and no program that only fits its tests was left on
+basic, hard and held. `largest`, `dot`, `power` and `take-n` passed. The cost is real too. On the
+held set `(= 35 (square-sum 5))` is wrong (it is 55), and that one test failed the correct
+program the search had found. `(= 0 (choose 4 6))` is right in mathematics, and the simple formula
+has no answer there. One wrong test fails a right program, so `sure` is an option, not the default.
 
 One live run of each on 2026-11-26: 4 of 8 main functions passed after their parts (558 API calls,
 parts included) and 4 of 8 alone (528 calls). The same four passed both ways (`digital-root`,
@@ -345,7 +383,8 @@ returned the sum 1 + 2 + … + n. With `(= 8 (power 2 3))` and `(= 1 (power 5 0)
 removes that branch, because the tests ran it and pass without it. Shrink cannot help when no part
 of the program is right, as in the `dot` whose `(fn [acc x] ...)` never uses `acc`. It also
 follows a rule where the tests give no evidence: `(first (rest xs))` alone passes both tests of
-`largest`, and shrink keeps the `reduce` only because it is the larger part. Broad local search
+`largest`, and shrink keeps the `reduce` only because it is the larger part. The `--sure` option attacks the
+same fault with more tests, which Jev writes. Broad local search
 finds more such programs; Jev's pick among the passing ones rejects many of them but not all. The
 benchmark runs hidden checks the search never sees and reports such a program as OVER, not as a
 pass. With several specifications, a part that passes its tests but is wrong still joins the
