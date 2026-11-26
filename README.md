@@ -53,7 +53,8 @@ The `(= ...)` forms inside `SPEC` become the tests; the remaining text is the de
 
 **Divide a hard function into parts.** With several specifications, each is solved in turn, and
 every function that passes its tests becomes one more option for the ones after it, by call and by
-name. A hard function is then a few choices over its solved parts:
+name. A part that fails its tests is searched once more. A hard function is then a few choices
+over its solved parts:
 
 ```bash
 clojure -M:run \
@@ -70,7 +71,9 @@ clojure -M:run \
 
 In one live run on 2026-11-26 the second function took 9 API calls after `prime?` took 87. The
 second specification alone failed after 142 calls: its best program was
-`(reduce + 0 (filter (fn [x] (< x n)) (range 2 n)))`. One run of each is a sample, not a score.
+`(reduce + 0 (filter (fn [x] (< x n)) (range 2 n)))`. One run of each is a sample, not a score:
+on the `split` benchmark set of eight such functions, as many passed alone as after their parts
+(see [Benchmark](#benchmark)).
 
 | Option | Default | Description |
 | --- | --- | --- |
@@ -166,7 +169,9 @@ with `pr-str`, never assembled from strings.
 4. **Local repair.** A failed program is read back into its decisions, and every small change is
    built from the options `catalog/legal` offers at its place: a new subtree of up to three
    decisions, another operator over the same arguments (`<` to `<=`), swapped arguments, or a wrap
-   such as `(and (> n 0) (not (empty? xs)))` around `(> n 0)`. The changes are ranked by Jev's
+   such as `(and (> n 0) (not (empty? xs)))` around `(> n 0)`. A call to a solved part may also
+   get a new call around it, with the part in any argument and the other arguments built from
+   locals: `(gcd a b)` becomes `(quot (* a b) (gcd a b))`. The changes are ranked by Jev's
    probabilities from the build (how unsure Jev was of the old option, how likely it found the new
    one), and the first 6000 are run in one batch with no API call. If some pass every test, one
    `Choice` shows Jev the six likeliest and asks which implements the specification, or none:
@@ -221,6 +226,7 @@ with `pr-str`, never assembled from strings.
 | `src/cljjev/jev.clj` | HTTP client for the System One API, with retries and answer validation |
 | `src/cljjev/policy.clj` | Deterministic mock policy |
 | `src/cljjev/cli.clj`, `src/cljjev/bench.clj` | Command-line and benchmark entry points |
+| `src/cljjev/report.clj` | Writes `BENCHMARKS.md` from the saved benchmark runs |
 | `dev/user.clj` | REPL helpers |
 | `verify/` | Lean 4 model of the core and proofs of its guarantees |
 | `docs/` | Static landing page for GitHub Pages |
@@ -236,6 +242,7 @@ clojure -M:test       # run every *-test namespace
 clojure -M:lint       # clj-kondo
 clojure -M:fmt        # cljfmt check (clojure -M:fmt/fix to rewrite)
 clojure -M:bench      # live benchmark; add --mock for an offline run, --runs N to repeat
+clojure -M:bench report   # write BENCHMARKS.md again from bench/results/
 cd verify && lake build   # check the Lean 4 proofs
 ```
 
@@ -245,11 +252,34 @@ change in [CHANGELOG.md](CHANGELOG.md) as described there. Planned work is track
 
 ## Benchmark
 
-`clojure -M:bench [--mock] [pick] [--runs N] [basic|hard|held]` runs 15 basic, 14 harder or 12
-held-out specifications (never used for tuning) N times, reports the pass rate and the number of
-API calls of each run with their median and range, and writes every run to `bench/results/`. A
-program passes only if it also passes hidden checks (`checks` in `src/cljjev/bench.clj`) that the
-search never sees; one that passes the spec's tests but not the checks is reported as OVER.
+`clojure -M:bench [--mock] [pick] [--runs N] [basic|hard|held|split|whole]` runs 15 basic, 14
+harder or 12 held-out specifications (never used for tuning) N times, reports the pass rate and
+the number of API calls of each run with their median and range, and writes every run to
+`bench/results/`. A program passes only if it also passes hidden checks (`checks` in
+`src/cljjev/bench.clj`) that the search never sees; one that passes the spec's tests but not the
+checks is reported as OVER.
+
+`split` runs eight hard functions, each as its parts and then the main function with the solved
+parts on offer; `whole` runs the same eight main functions alone. Every run writes
+[BENCHMARKS.md](BENCHMARKS.md) again from `bench/results/`: for each set, every function's result,
+API calls and program.
+
+One live run of each on 2026-11-26: 4 of 8 main functions passed after their parts (558 API calls,
+parts included) and 4 of 8 alone (528 calls). The same four passed both ways (`digital-root`,
+`palindrome?`, `fib-sum`, `perfect?`), so the split did not raise the pass rate here; it lowered
+the calls of a main function itself, `digital-root` from 62 to 9. `prime-sum` failed after its
+part `prime?` failed. `lcm` and `choose` had their parts solved and did not combine them: `lcm`
+ended as `(gcd a b)`. `longest` returned `(collatz n)`, which fits its four tests and not the
+hidden checks. A test (`test/cljjev/bench_test.clj`) shows that every function of the set has an
+answer the search can reach after its parts; there is no such check for a main function alone.
+
+After that run, local repair got the call around a solved part, and a failed part its second
+search. One more live `split` run: 5 of 8 passed (707 API calls), with `lcm` new among them. That
+run does not show the new change at work: Jev's first `lcm` was `(gcd (* a b) (gcd a b))`, and
+the older change of one operator made it `(/ (* a b) (gcd a b))`. The call around a part is
+checked offline only, on the first program of another call, `(gcd a b)`. The second search of
+`prime?` returned a program that fits its six tests and fails the hidden checks, and `prime-sum`
+built on it failed, so the second search cost 159 calls and gained nothing here.
 
 Two live runs per set on 2026-10-21 with `jev-latest`, before local repair and after, both scored
 with the hidden checks:

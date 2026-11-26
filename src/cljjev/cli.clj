@@ -103,13 +103,19 @@
           (loop [[spec & more] arguments
                  solved []
                  code 0]
-            (let [outcome (library/solve spec policy solved
-                                         :tests (if more [] (:test options))
-                                         :limits (merge g/default-limits
-                                                        (select-keys options [:max-depth :max-steps :tries]))
-                                         :log (if (:trace options) log-decision (fn [_]))
-                                         :log-attempt log-attempt
-                                         :flow (if (:pick options) :pick :score))
+            (let [solve #(library/solve spec policy solved
+                                        :tests (if more [] (:test options))
+                                        :limits (merge g/default-limits
+                                                       (select-keys options [:max-depth :max-steps :tries]))
+                                        :log (if (:trace options) log-decision (fn [_]))
+                                        :log-attempt log-attempt
+                                        :flow (if (:pick options) :pick :score))
+                  outcome (solve)
+                  ;; without this part the later specs lose an option, so it gets one more search
+                  outcome (if (and more (not (g/passed? outcome)))
+                            (do (err "cljjev: no program passed; searching once more")
+                                (solve))
+                            outcome)
                   code (max code (report outcome (:out options) (not= spec (first arguments))))]
               (if more
                 (recur more

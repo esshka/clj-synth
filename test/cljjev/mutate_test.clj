@@ -1,6 +1,6 @@
 (ns cljjev.mutate-test
   (:require [clojure.test :refer [deftest is]]
-            [cljjev.env :refer [extract]]
+            [cljjev.env :refer [extract with-library]]
             [cljjev.generate :as g]
             [cljjev.mutate :refer [hoists neighbors redundant? sites]]
             [cljjev.test-support :refer [build fact-keys fact-pools limits short-keys]]
@@ -59,3 +59,21 @@
     (is (not (contains? dropped "(defn largest [xs] (max (rest xs) (reduce max (first xs) (rest xs))))")))
     (is (not (contains? dropped "(defn largest [xs] xs)")))
     (is (every? #(sites (:tree %) pools limits) found))))
+
+(deftest a-call-grows-around-a-solved-part
+  (let [spec "sum of the squares of a and b (= 25 (sum-sq 3 4)) (= 0 (sum-sq 0 0))"
+        sq {:name "sq" :params ["x"] :kinds ["num"] :returns "num" :doc "(sq x) square of x"}
+        pools (with-library (extract spec []) [sq])
+        changes (neighbors '(defn sum-sq [a b] (sq a)) pools limits 3)
+        texts (set (map (comp flat :tree) changes))
+        never (g/asker (fn [_ _] (throw (ex-info "asked" {}))) (atom 0))
+        [plain _] (build short-keys)]
+    (is (contains? texts "(defn sum-sq [a b] (+ (sq a) (sq b)))"))
+    ;; the part may be any argument
+    (is (contains? texts "(defn sum-sq [a b] (- b (sq a)))"))
+    (doseq [c (take 300 (filter #(re-find #"^wrap:" (:key %)) changes))
+            :let [plan (into {} (map (juxt :path identity)) (sites (:tree c) pools limits))]]
+      (is (= (:tree c) (first (g/build never pools plan limits (fn [_]) nil))) (flat (:tree c))))
+    ;; with no library the search is the one basic, hard and held were measured with
+    (is (= (set (map :tree (neighbors plain fact-pools limits 3)))
+           (set (map :tree (neighbors plain (with-library fact-pools []) limits 3)))))))

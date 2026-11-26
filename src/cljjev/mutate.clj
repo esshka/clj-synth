@@ -1,8 +1,8 @@
 (ns cljjev.mutate
   "Small changes to a finished program, each one a program build could make: a new small
   subtree, another operator over the same arguments, swapped arguments, a wrap in a new
-  form, or a part in place of the whole. Local repair and shrink test them without asking
-  Jev."
+  form, a new call around a solved part, or a part in place of the whole. Local repair and
+  shrink test them without asking Jev."
   (:require [cljjev.catalog :refer [known legal wrap-ops]]
             [cljjev.env :refer [context]]
             [cljjev.tree :refer [->hole branch? head hole? holes node-at put-at]]))
@@ -141,12 +141,41 @@
            :when (or (= 2 (count t)) (not (redundant? (node-at w (conj path 2)))))]
        {:tree w :size (inc (count ks)) :key (str "wrap:" op)}))))
 
+(defn- grown
+  "Returns the changes that put the call to a solved part at d inside a new call, the part
+  in any argument and the other arguments built from locals: (gcd a b) ->
+  (quot (* a b) (gcd a b)). Jev picks a part before the form around it, and no other change
+  grows a program outward."
+  [opts tree d size]
+  (let [{:keys [path hole]} d
+        node (node-at tree path)]
+    (for [[k [_ t]] (opts tree path hole)
+          :when (and (seq? t) (not= k "do")
+                     (every? #(and (hole? %) (expr-kinds (:kind %))) (rest t)))
+          i (range 1 (count t))
+          :let [base (put-at tree path (apply list (assoc (vec t) i node)))]
+          :when (parse opts base path hole)
+          [w ks] (completions opts base path size)
+          :let [new (node-at w path)]
+          ;; ponytail: literals left out, or one part gives 60000 changes a round; add them
+          ;; when a spec needs (+ 1 (part n))
+          :when (and (not (redundant? new))
+                     (every? symbol? (for [j (range 1 (count new)) :when (not= j i)
+                                           leaf (leaves (nth new j))]
+                                       leaf)))]
+      {:tree w :size (inc (count ks)) :key (str "wrap:" k)})))
+
 (defn neighbors
   "Returns every change to an expression of tree with at most size new decisions, as
   {:tree :site :size :key}, site the decision it changes. Sites run in parallel."
   [tree pools limits size]
-  (let [opts (options pools limits)]
-    (apply concat (pmap (fn [d] (mapv #(assoc % :site d) (changes-at opts tree d size)))
+  (let [opts (options pools limits)
+        solved (set (map :name (:library pools)))]
+    (apply concat (pmap (fn [d]
+                          (mapv #(assoc % :site d)
+                                (concat (changes-at opts tree d size)
+                                        (when (solved (head (node-at tree (:path d))))
+                                          (grown opts tree d size)))))
                         (filter #(expr-kinds (get-in % [:hole :kind])) (decisions opts tree))))))
 
 (defn- parts

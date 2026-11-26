@@ -1,0 +1,181 @@
+{:date "2026-11-26T11:14:21.277189",
+ :set "split",
+ :flow :score,
+ :mock false,
+ :runs
+ [[{:passed false,
+    :edit "`defn body`: wrap reduce in (+ ...)",
+    :parts
+    [{:passed true,
+      :attempts 2,
+      :edit
+      "local: `cond then2`: false -> true; shrink of (defn prime? [n] (cond (<= n 1) false (= 2 n) true :else (cond (even? n) false (and (odd? n) (loop [i 3] (cond (zero? (mod n i)) false (<= i n) (loop [x (+ 2 2)] (cond false false false false :else true)) :else true))) true :else false)))",
+      :seconds 83.165804541,
+      :spec
+      "is n a prime number (= true (prime? 7)) (= false (prime? 8)) (= false (prime? 1)) (= true (prime? 2)) (= false (prime? 9)) (= false (prime? 15))",
+      :checked false,
+      :calls 370,
+      :program
+      "(defn prime? [n] (cond (<= n 1) false (= 2 n) true :else (cond (even? n) false (loop [i 3] (cond (zero? (mod n i)) false i (cond false false false false :else true) :else true)) true :else false)))",
+      :tested 49149}],
+    :seconds 107.002414833,
+    :spec
+    "sum of the prime numbers below n (= 17 (prime-sum 10)) (= 0 (prime-sum 2)) (= 5 (prime-sum 5)) (= 28 (prime-sum 12))",
+    :checked false,
+    :calls 461,
+    :program
+    "(defn prime-sum [n] (+ (reduce + 0 (filter prime? (range 2 n))) 3))",
+    :tested 66867}
+   {:passed true,
+    :edit
+    "local: `defn body`: (gcd (* a b) (gcd a b)) -> (/ (* a b) (gcd a b))",
+    :parts
+    [{:passed true,
+      :checked true,
+      :tested 0,
+      :edit nil,
+      :program "(defn gcd [a b] (if (zero? b) a (gcd b (mod a b))))",
+      :spec
+      "greatest common divisor of a and b (= 6 (gcd 12 18)) (= 1 (gcd 7 5)) (= 5 (gcd 5 0))",
+      :calls 10,
+      :seconds 1.8557915}],
+    :seconds 9.572832375,
+    :spec
+    "least common multiple of a and b (= 12 (lcm 4 6)) (= 15 (lcm 3 5)) (= 6 (lcm 6 6))",
+    :checked true,
+    :calls 21,
+    :program "(defn lcm [a b] (/ (* a b) (gcd a b)))",
+    :tested 13550}
+   {:passed true,
+    :edit nil,
+    :parts
+    [{:passed true,
+      :checked true,
+      :tested 0,
+      :edit nil,
+      :program
+      "(defn digit-sum [n] (loop [x n acc 0] (if (zero? x) acc (recur (quot x 10) (+ (mod x 10) acc)))))",
+      :spec
+      "sum of the decimal digits of n (= 6 (digit-sum 123)) (= 0 (digit-sum 0)) (= 9 (digit-sum 9))",
+      :calls 18,
+      :seconds 3.20544875}],
+    :seconds 4.896424541,
+    :spec
+    "add the digits of n again and again until one digit is left (= 2 (digital-root 38)) (= 7 (digital-root 7)) (= 9 (digital-root 99)) (= 1 (digital-root 10))",
+    :checked true,
+    :calls 27,
+    :program
+    "(defn digital-root [n] (if (< n 10) n (digital-root (digit-sum n))))",
+    :tested 0}
+   {:passed true,
+    :edit nil,
+    :parts
+    [{:passed true,
+      :checked true,
+      :tested 6000,
+      :edit "local: `fn body`: (cons acc x) -> (cons x acc)",
+      :program
+      "(defn rev [coll] (reduce (fn [acc x] (cons x acc)) [] coll))",
+      :spec
+      "reverse the items of coll (= [3 2 1] (rev [1 2 3])) (= [] (rev []))",
+      :calls 10,
+      :seconds 2.704659458}],
+    :seconds 3.636689333,
+    :spec
+    "is xs the same when read backwards (= true (palindrome? [1 2 1])) (= false (palindrome? [1 2])) (= true (palindrome? [])) (= false (palindrome? [1 2 2]))",
+    :checked true,
+    :calls 15,
+    :program "(defn palindrome? [xs] (= (rev xs) xs))",
+    :tested 6000}
+   {:passed false,
+    :edit "`defn body`: call:choose -> if",
+    :parts
+    [{:passed true,
+      :checked true,
+      :tested 0,
+      :edit nil,
+      :program
+      "(defn factorial [n] (if (zero? n) 1 (* n (factorial (dec n)))))",
+      :spec
+      "write a recursive factorial of n (= 120 (factorial 5)) (= 1 (factorial 0))",
+      :calls 10,
+      :seconds 1.826877208}],
+    :seconds 55.539876958,
+    :spec
+    "number of ways to choose k items out of n (= 10 (choose 5 2)) (= 1 (choose 4 0)) (= 20 (choose 6 3)) (= 4 (choose 4 3))",
+    :checked false,
+    :calls 88,
+    :program
+    "(defn choose [n k] (if (zero? k) 1 (choose (dec n) (dec k))))",
+    :tested 30000}
+   {:passed true,
+    :edit "local: `recur arg 2`: (dec up) -> (inc sum)",
+    :parts
+    [{:passed true,
+      :checked true,
+      :tested 9844,
+      :edit "local: `fib arg 1`: (- 2 1) -> (- n 2)",
+      :program
+      "(defn fib [n] (if (< n 2) n (+ (fib (- n 1)) (fib (- n 2)))))",
+      :spec
+      "return the nth fibonacci number (= 0 (fib 0)) (= 1 (fib 1)) (= 8 (fib 6)) (= 55 (fib 10))",
+      :calls 17,
+      :seconds 7.339876541}],
+    :seconds 12.93480925,
+    :spec
+    "sum of the fibonacci numbers from the 0th up to the nth (= 20 (fib-sum 6)) (= 0 (fib-sum 0)) (= 1 (fib-sum 1)) (= 7 (fib-sum 4))",
+    :checked true,
+    :calls 36,
+    :program
+    "(defn fib-sum [n] (loop [sum 0 up 1 nth n] (if (zero? nth) sum (recur (+ sum up) (inc sum) (dec nth)))))",
+    :tested 15844}
+   {:passed true,
+    :edit
+    "`max b`: call:longest -> lit:0; shrink of (defn longest [n] (max (collatz n) 0))",
+    :parts
+    [{:passed true,
+      :checked true,
+      :tested 12000,
+      :edit "local: `+ a`: 3 -> 1; `+ b`: x -> (* x 3)",
+      :program
+      "(defn collatz [n] (loop [x n steps 0] (if (= 1 x) steps (recur (if (even? x) (/ x 2) (+ 1 (* x 3))) (+ 1 steps)))))",
+      :spec
+      "number of collatz steps from n down to 1 (= 0 (collatz 1)) (= 1 (collatz 2)) (= 7 (collatz 3)) (= 5 (collatz 5)) (= 16 (collatz 7))",
+      :calls 24,
+      :seconds 13.429618875}],
+    :seconds 25.682019833,
+    :spec
+    "largest number of collatz steps for any start from 1 up to n (= 16 (longest 7)) (= 0 (longest 1)) (= 7 (longest 3)) (= 8 (longest 6))",
+    :checked false,
+    :calls 35,
+    :program "(defn longest [n] (collatz n))",
+    :tested 17083}
+   {:passed true,
+    :edit nil,
+    :parts
+    [{:passed true,
+      :checked true,
+      :tested 0,
+      :edit nil,
+      :program "(defn divides? [d n] (zero? (mod n d)))",
+      :spec
+      "does d divide n with no remainder (= true (divides? 3 12)) (= false (divides? 5 12)) (= true (divides? 1 7)) (= false (divides? 4 6))",
+      :calls 5,
+      :seconds 0.984804875}
+     {:passed true,
+      :checked true,
+      :tested 4844,
+      :edit "local: `fn body`: (mod n x) -> (divides? x n)",
+      :program
+      "(defn divisor-sum [n] (reduce + 0 (filter (fn [x] (divides? x n)) (range 1 n))))",
+      :spec
+      "sum of the numbers below n that divide n (= 6 (divisor-sum 6)) (= 1 (divisor-sum 7)) (= 16 (divisor-sum 12)) (= 0 (divisor-sum 1))",
+      :calls 14,
+      :seconds 4.146483125}],
+    :seconds 6.073782,
+    :spec
+    "is n equal to the sum of its smaller divisors (= true (perfect? 6)) (= false (perfect? 12)) (= true (perfect? 28)) (= false (perfect? 7))",
+    :checked true,
+    :calls 24,
+    :program "(defn perfect? [n] (= (divisor-sum n) n))",
+    :tested 4844}]]}

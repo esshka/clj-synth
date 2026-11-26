@@ -27,6 +27,22 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- Local repair grows a call around a solved part (`grown` in `src/cljjev/mutate.clj`): the part
+  may be any argument, and the other arguments are built from locals, so `(gcd a b)` becomes
+  `(quot (* a b) (gcd a b))` with no API call. It is active only when parts are on offer, so
+  `basic`, `hard` and `held` search as before. A part that fails its tests is searched once more,
+  on the command line and in `clojure -M:bench split`. One live `split` run before, 4 of 8 (558
+  calls), and one after, 5 of 8 (707 calls); `lcm` is the new pass, but in that run an older
+  change found it, and the second search of `prime?` gained nothing. The new change found `lcm`
+  offline from the first program of another call.
+
+- Benchmark sets `split` and `whole` (`src/cljjev/bench.clj`): `clojure -M:bench split` solves
+  eight hard functions as their parts and then a main function with the solved parts on offer, and
+  `whole` solves the same eight main functions alone. One live run of each: 4 of 8 passed after
+  their parts (558 API calls, parts included) and 4 of 8 alone (528 calls), the same four.
+- `BENCHMARKS.md` (`src/cljjev/report.clj`): tables of every saved run, with each function's
+  result, API calls and program, and the `split` set beside `whole`. Every benchmark run writes it
+  again, and so does `clojure -M:bench report`.
 - Several `SPEC` arguments (`src/cljjev/library.clj`): `clojure -M:run "SPEC" "SPEC" ...` solves
   them in turn, and every function that passes becomes an option for the later ones, as a call
   where its kind fits and by name in a function slot. `--test` goes to the last `SPEC`, and

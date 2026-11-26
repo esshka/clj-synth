@@ -4,14 +4,34 @@ Planned work, highest priority first. Move an item to [CHANGELOG.md](CHANGELOG.m
 
 ## Hard problems
 
-- [ ] **Let Jev divide.** Several `SPEC` arguments let a person split a hard function into parts
-  (`src/cljjev/library.clj`). The next step is a split that Jev chooses. A part needs its own
-  tests, and Jev emits no text, so the open problem is where those tests come from.
+- [ ] **Make the search use its parts.** Two live runs of `clojure -M:bench split`: 4 and 5 of 8,
+  against 4 of 8 for the main functions alone. What is left:
+  - `choose` never calls `factorial`: its first program is a recursion, and local repair grows a
+    call only around a part that is already in the program.
+  - A part that only fits its tests poisons the main function: the second search of `prime?`
+    returned such a program, and `prime-sum` built on it failed. A part needs a stronger check
+    than its own tests before it joins the options.
+  - `longest` returns `(collatz n)`, which fits its four tests. Its spec needs a test where the
+    longest start is not the last one.
+  - The call around a part passed offline for `lcm` and has no live pass yet.
+- [ ] **Let Jev divide: probed, not built.** Several `SPEC` arguments let a person split a hard
+  function into parts (`src/cljjev/library.clj`). On 2026-11-26 a split by Jev was probed on the
+  mains of the `split` set. Jev picked words of the spec and a shape for a helper (for example
+  `prime` and number to true or false), then one question per input asked what the helper returns,
+  and an answer at 0.9 or more became a test of the helper.
+  - The pick worked: a usable helper for 5 of the 5 mains that have one, none for `lcm` and
+    `choose`, whose helper is not named in the prose, and none for 5 of 6 basic specs.
+  - The answers gave no wrong test, but tests for only 2 of 5 helpers: `prime?` (13 of 13 sure)
+    and the digit sum (13 of 13, ten of them single digits). For the fibonacci numbers and the
+    collatz steps Jev was sure of nothing, and its best guesses were wrong (`(fib 3)` as 8 at 0.16).
+  - So the open problem is the tests of a helper that returns a number. Other limits seen: a
+    helper named by more than three words (`sum of its smaller divisors`), and a helper that
+    returns a collection (`palindrome?` needs a reverse).
 - [ ] **Push tests down to holes.** After `(if (zero? n) __ __)`, the test `(= 1 (factorial 0))`
   says the first hole is 1. Derive each hole's expected values from the forms above it, so a hole
   is solved and checked alone.
-- [ ] **A benchmark set of split problems,** so the library is measured over several runs and not
-  by one example.
+- [ ] **A held-out set of split problems.** The `split` set is the only one, so a change tuned on it
+  has no independent check. Several runs are also needed: one run of it is a sample.
 
 ## Search quality
 

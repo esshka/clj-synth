@@ -1,8 +1,10 @@
 (ns cljjev.bench
-  "Benchmark: clojure -M:bench [--mock] [pick] [--runs N] [basic|hard|held] runs a spec set
-  N times and reports the pass rate and API calls of each run, their median and range when
-  N > 1, and writes the runs to bench/results/. pick runs the :pick search flow. A program
-  passes only if it also passes hidden checks the search never sees."
+  "Benchmark: clojure -M:bench [--mock] [pick] [--runs N] [basic|hard|held|split|whole] runs
+  a spec set N times and reports the pass rate and API calls of each run, their median and
+  range when N > 1, and writes the runs to bench/results/. pick runs the :pick search flow.
+  A program passes only if it also passes hidden checks the search never sees. split solves
+  hard functions as parts and then a main function; whole solves the same mains alone.
+  Every run, and clojure -M:bench report alone, writes BENCHMARKS.md again."
   (:require [clojure.java.io :as io]
             [clojure.pprint :refer [pprint]]
             [clojure.string :as str]
@@ -10,7 +12,9 @@
             [cljjev.env :refer [extract]]
             [cljjev.generate :as g]
             [cljjev.jev :as jev]
+            [cljjev.library :as library]
             [cljjev.policy :refer [mock-policy]]
+            [cljjev.report :as report]
             [cljjev.validate :refer [run-tests]])
   (:import (java.time LocalDateTime)
            (java.time.format DateTimeFormatter)))
@@ -73,6 +77,38 @@
    "the second item of xs (= 2 (second-item [1 2 3])) (= 9 (second-item [8 9]))"
    "largest minus smallest number in xs (= 4 (spread [3 1 5])) (= 0 (spread [7]))"])
 
+(defn- part [name]
+  (first (filter #(str/includes? % (str "(" name " ")) (concat basic hard))))
+
+;; a hard function divided by hand: each spec may call the ones before it, the last is the main
+(def split
+  [[(part "prime?")
+    (str "sum of the prime numbers below n "
+         "(= 17 (prime-sum 10)) (= 0 (prime-sum 2)) (= 5 (prime-sum 5)) (= 28 (prime-sum 12))")]
+   [(part "gcd")
+    "least common multiple of a and b (= 12 (lcm 4 6)) (= 15 (lcm 3 5)) (= 6 (lcm 6 6))"]
+   [(part "digit-sum")
+    (str "add the digits of n again and again until one digit is left (= 2 (digital-root 38)) "
+         "(= 7 (digital-root 7)) (= 9 (digital-root 99)) (= 1 (digital-root 10))")]
+   [(part "rev")
+    (str "is xs the same when read backwards (= true (palindrome? [1 2 1])) "
+         "(= false (palindrome? [1 2])) (= true (palindrome? [])) (= false (palindrome? [1 2 2]))")]
+   [(part "factorial")
+    (str "number of ways to choose k items out of n "
+         "(= 10 (choose 5 2)) (= 1 (choose 4 0)) (= 20 (choose 6 3)) (= 4 (choose 4 3))")]
+   [(part "fib")
+    (str "sum of the fibonacci numbers from the 0th up to the nth "
+         "(= 20 (fib-sum 6)) (= 0 (fib-sum 0)) (= 1 (fib-sum 1)) (= 7 (fib-sum 4))")]
+   [(part "collatz")
+    (str "largest number of collatz steps for any start from 1 up to n "
+         "(= 16 (longest 7)) (= 0 (longest 1)) (= 7 (longest 3)) (= 8 (longest 6))")]
+   [(str "does d divide n with no remainder (= true (divides? 3 12)) (= false (divides? 5 12)) "
+         "(= true (divides? 1 7)) (= false (divides? 4 6))")
+    (str "sum of the numbers below n that divide n (= 6 (divisor-sum 6)) (= 1 (divisor-sum 7)) "
+         "(= 16 (divisor-sum 12)) (= 0 (divisor-sum 1))")
+    (str "is n equal to the sum of its smaller divisors (= true (perfect? 6)) "
+         "(= false (perfect? 12)) (= true (perfect? 28)) (= false (perfect? 7))")]])
+
 ;; tests the search never sees: a program that passes the spec's tests but not these only
 ;; fits them, like (cons (first xs) (filter even? xs)) for take-n
 (def checks
@@ -116,7 +152,18 @@
    "no-zeros" ["(= [] (no-zeros []))" "(= [3 4] (no-zeros [3 0 4]))"]
    "square-sum" ["(= 1 (square-sum 1))" "(= 30 (square-sum 4))"]
    "second-item" ["(= 5 (second-item [4 5 6 7]))" "(= 0 (second-item [1 0]))"]
-   "spread" ["(= 9 (spread [10 1]))" "(= 6 (spread [-3 3 0]))"]})
+   "spread" ["(= 9 (spread [10 1]))" "(= 6 (spread [-3 3 0]))"]
+   "prime-sum" ["(= 77 (prime-sum 20))" "(= 2 (prime-sum 3))" "(= 0 (prime-sum 0))"]
+   "lcm" ["(= 30 (lcm 10 15))" "(= 7 (lcm 1 7))" "(= 24 (lcm 8 12))"]
+   "digital-root" ["(= 6 (digital-root 123))" "(= 0 (digital-root 0))" "(= 1 (digital-root 991))"]
+   "palindrome?" ["(= true (palindrome? [7]))" "(= true (palindrome? [1 2 2 1]))"
+                  "(= false (palindrome? [1 2 3 1]))"]
+   "choose" ["(= 1 (choose 3 3))" "(= 6 (choose 4 2))" "(= 7 (choose 7 1))"]
+   "fib-sum" ["(= 2 (fib-sum 2))" "(= 12 (fib-sum 5))" "(= 33 (fib-sum 7))"]
+   "longest" ["(= 1 (longest 2))" "(= 7 (longest 5))" "(= 19 (longest 9))"]
+   "divides?" ["(= true (divides? 2 2))" "(= false (divides? 2 9))" "(= true (divides? 7 21))"]
+   "divisor-sum" ["(= 28 (divisor-sum 28))" "(= 7 (divisor-sum 8))" "(= 1 (divisor-sum 2))"]
+   "perfect?" ["(= false (perfect? 8))" "(= false (perfect? 1))" "(= true (perfect? 496))"]})
 
 (defn checked?
   "Returns true if source, a program file for spec, passes spec's hidden checks."
@@ -124,10 +171,11 @@
   (every? :ok (run-tests source (get checks (first (:names (extract spec [])))))))
 
 (defn- run-spec
-  "Solves spec with a fresh policy and prints one line. Returns {:spec :passed :checked
-  :calls :seconds :tested :edit :program}: passed on the spec's tests, checked on the
-  hidden ones too; tested counts the programs local repair ran."
-  [spec mock flow]
+  "Solves spec with a fresh policy and the functions of solved on offer, and prints one
+  line, in lower case for a part. Returns {:spec :passed :checked :calls :seconds :tested
+  :edit :program}: passed on the spec's tests, checked on the hidden ones too; tested
+  counts the programs local repair ran."
+  [spec mock flow solved part?]
   (let [calls (atom 0)
         inner (if mock (mock-policy) (jev/client (api-key)))
         policy (fn [state questions]
@@ -136,21 +184,46 @@
         start (System/nanoTime)
         ;; a crash is a failed spec; keep benchmarking
         out (try
-              (let [out (g/solve spec policy :flow flow)
+              (let [out (library/solve spec policy solved :flow flow)
                     source (g/source (g/best out))
                     passed (g/passed? out)]
-                {:passed passed :checked (and passed (checked? spec source))
+                {:passed passed
+                 :checked (and passed (checked? spec (str (apply str (map :source solved)) source)))
                  :tested (:tested out) :edit (:edit (g/best out))
                  :program (str/join " " (drop 2 (str/split (str/trim source) #"\s+")))})
               (catch Exception e
                 {:passed false :tested 0 :program (str "crash: " (ex-message e))}))
-        seconds (/ (- (System/nanoTime) start) 1e9)]
-    ;; OVER: passes the spec's tests only
+        seconds (/ (- (System/nanoTime) start) 1e9)
+        ;; OVER: passes the spec's tests only
+        status (cond (:checked out) "PASS" (:passed out) "OVER" :else "FAIL")]
     (println (format "%s %3d calls %5.1fs %6d local  %s"
-                     (cond (:checked out) "PASS" (:passed out) "OVER" :else "FAIL") @calls
-                     seconds (:tested out) (:program out)))
+                     (cond-> status part? str/lower-case) @calls seconds (:tested out)
+                     (:program out)))
     (flush)
     (assoc out :spec spec :calls @calls :seconds seconds)))
+
+(defn- run-chain
+  "Solves the specs of chain in turn; a part joins the options of the later ones when it
+  passes its own tests, and a part that fails is searched once more, both as on the command
+  line. Returns the main's result with the calls, seconds and local programs of the whole
+  chain, and its parts' results in :parts; :attempts 2 marks a part that was searched twice."
+  [chain mock flow]
+  (let [done (reduce (fn [done spec]
+                       (let [part? (not= spec (peek chain))
+                             solve #(run-spec spec mock flow
+                                              (for [r done :when (:passed r)]
+                                                (library/entry (:spec r) {:code (:program r)}))
+                                              part?)
+                             r (solve)]
+                         (conj done (if (and part? (not (:passed r)))
+                                      (assoc (merge-with + (solve) (select-keys r [:calls :seconds :tested]))
+                                             :attempts 2)
+                                      r))))
+                     []
+                     chain)
+        total (fn [k] (reduce + (map k done)))]
+    (assoc (peek done) :parts (pop done)
+           :calls (total :calls) :seconds (total :seconds) :tested (total :tested))))
 
 (defn- median [xs]
   (let [v (vec (sort xs))
@@ -171,15 +244,19 @@
                                    :runs runs})))
     (println "saved" (.getPath f))))
 
-(defn -main [& args]
+(defn- run-set [args]
   (let [argv (set args)
         runs (or (some (fn [[a b]] (when (= a "--runs") (parse-long b))) (partition 2 1 args)) 1)
-        set-name (or (some argv ["hard" "basic" "held"]) "basic+hard")
-        specs (case set-name "hard" hard "basic" basic "held" held (concat basic hard))
+        set-name (or (some argv ["hard" "basic" "held" "split" "whole"]) "basic+hard")
+        specs (case set-name
+                "split" split
+                "whole" (map (comp vector peek) split)
+                (map vector (case set-name
+                              "hard" hard "basic" basic "held" held (concat basic hard))))
         flow (if (argv "pick") :pick :score)
         results (vec (for [r (range runs)]
                        (do (when (> runs 1) (println (str "\nrun " (inc r) " of " runs)))
-                           (let [rs (mapv #(run-spec % (argv "--mock") flow) specs)]
+                           (let [rs (mapv #(run-chain % (argv "--mock") flow) specs)]
                              (println (str "\n" (count (filter :checked rs)) "/" (count specs) " passed, "
                                            (count (remove :checked (filter :passed rs)))
                                            " more only fit the spec's tests, "
@@ -188,5 +265,10 @@
     (when (> runs 1)
       (println (stats "passed:" (map #(count (filter :checked %)) results)))
       (println (stats "API calls:" (map #(reduce + (map :calls %)) results))))
-    (save! set-name flow (argv "--mock") results)
-    (shutdown-agents)))
+    (save! set-name flow (argv "--mock") results)))
+
+(defn -main [& args]
+  (when-not (some #{"report"} args)
+    (run-set args))
+  (report/write!)
+  (shutdown-agents))

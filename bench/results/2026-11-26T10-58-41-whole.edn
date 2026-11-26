@@ -1,0 +1,93 @@
+{:date "2026-11-26T10:58:41.893645",
+ :set "whole",
+ :flow :score,
+ :mock false,
+ :runs
+ [[{:passed false,
+    :edit nil,
+    :parts [],
+    :seconds 48.637143792,
+    :spec
+    "sum of the prime numbers below n (= 17 (prime-sum 10)) (= 0 (prime-sum 2)) (= 5 (prime-sum 5)) (= 28 (prime-sum 12))",
+    :checked false,
+    :calls 136,
+    :program
+    "(defn prime-sum [n] (reduce + 0 (filter (fn [x] (< x n)) (range 2 n))))",
+    :tested 30000}
+   {:passed false,
+    :edit "`defn body`: call:lcm -> *",
+    :parts [],
+    :seconds 45.919092125,
+    :spec
+    "least common multiple of a and b (= 12 (lcm 4 6)) (= 15 (lcm 3 5)) (= 6 (lcm 6 6))",
+    :checked false,
+    :calls 97,
+    :program "(defn lcm [a b] (* a b))",
+    :tested 10550}
+   {:passed true,
+    :edit "local: `if test`: (< 10 x) -> (<= 10 x)",
+    :parts [],
+    :seconds 47.155951791,
+    :spec
+    "add the digits of n again and again until one digit is left (= 2 (digital-root 38)) (= 7 (digital-root 7)) (= 9 (digital-root 99)) (= 1 (digital-root 10))",
+    :checked true,
+    :calls 62,
+    :program
+    "(defn digital-root [n] (loop [x n] (if (<= 10 x) (recur (+ (quot x 10) (mod x 10))) x)))",
+    :tested 30000}
+   {:passed true,
+    :edit "local: `cons coll`: (conj acc acc) -> acc",
+    :parts [],
+    :seconds 9.240650166,
+    :spec
+    "is xs the same when read backwards (= true (palindrome? [1 2 1])) (= false (palindrome? [1 2])) (= true (palindrome? [])) (= false (palindrome? [1 2 2]))",
+    :checked true,
+    :calls 22,
+    :program
+    "(defn palindrome? [xs] (= xs (reduce (fn [acc x] (cons x acc)) [] xs)))",
+    :tested 9080}
+   {:passed false,
+    :edit "`defn body`: restart call:choose -> if",
+    :parts [],
+    :seconds 75.908842375,
+    :spec
+    "number of ways to choose k items out of n (= 10 (choose 5 2)) (= 1 (choose 4 0)) (= 20 (choose 6 3)) (= 4 (choose 4 3))",
+    :checked false,
+    :calls 82,
+    :program
+    "(defn choose [n k] (if (zero? k) 1 (choose (- n 1) (dec k))))",
+    :tested 30000}
+   {:passed true,
+    :edit "local: `recur arg 2`: (+ up up) -> (inc sum)",
+    :parts [],
+    :seconds 7.949871084,
+    :spec
+    "sum of the fibonacci numbers from the 0th up to the nth (= 20 (fib-sum 6)) (= 0 (fib-sum 0)) (= 1 (fib-sum 1)) (= 7 (fib-sum 4))",
+    :checked true,
+    :calls 20,
+    :program
+    "(defn fib-sum [n] (loop [sum 0 up 1 nth n] (if (zero? nth) sum (recur (+ sum up) (inc sum) (dec nth)))))",
+    :tested 6000}
+   {:passed false,
+    :edit "`loop init x`: wrap lit:1 in (+ ...)",
+    :parts [],
+    :seconds 54.529144166,
+    :spec
+    "largest number of collatz steps for any start from 1 up to n (= 16 (longest 7)) (= 0 (longest 1)) (= 7 (longest 3)) (= 8 (longest 6))",
+    :checked false,
+    :calls 85,
+    :program
+    "(defn longest [n] (max 0 (loop [largest 0 x (+ 1 n)] (if (<= x n) (max largest (longest x)) largest))))",
+    :tested 30000}
+   {:passed true,
+    :edit
+    "`fn body`: wrap < in (and ...); shrink of (defn perfect? [n] (= n (reduce + 0 (filter (fn [x] (and (< x n) (= (mod n x) 0))) (range 1 n)))))",
+    :parts [],
+    :seconds 14.203138458,
+    :spec
+    "is n equal to the sum of its smaller divisors (= true (perfect? 6)) (= false (perfect? 12)) (= true (perfect? 28)) (= false (perfect? 7))",
+    :checked true,
+    :calls 24,
+    :program
+    "(defn perfect? [n] (= n (reduce + 0 (filter (fn [x] (= (mod n x) 0)) (range 1 n)))))",
+    :tested 14634}]]}

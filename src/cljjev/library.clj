@@ -36,7 +36,8 @@
              (assoc options
                     :library library
                     :run (fn [source tests] (run (str sources source) tests))
-                    :batch (when batch
+                    :batch (if (and batch (seq trees))
                              (fn [programs tests]
-                               (batch (map #(apply list 'do (concat trees [%])) programs) tests)))
+                               (batch (map #(apply list 'do (concat trees [%])) programs) tests))
+                             batch)
                     :trace (fn [code test] (trace (str sources code) test))))))
