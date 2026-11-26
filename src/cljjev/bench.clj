@@ -1,11 +1,13 @@
 (ns cljjev.bench
-  "Benchmark: clojure -M:bench [--mock|flat] [pick] [sure] [--runs N] [basic|hard|held|split|whole] runs
+  "Benchmark: clojure -M:bench [--mock|flat] [pick] [sure] [plan] [--runs N]
+  [basic|hard|held|split|whole] runs
   a spec set N times and reports the pass rate and API calls of each run, their median and
   range when N > 1, and writes the runs to bench/results/. pick runs the :pick search flow.
   A program passes only if it also passes hidden checks the search never sees. split solves
   hard functions as parts and then a main function; whole solves the same mains alone.
   flat runs with no model: every option has the same probability, and the set is saved as
-  <set>-flat. sure adds Jev's sure answers to each spec's tests and saves the set as <set>-sure. Every run, and clojure -M:bench report alone, writes BENCHMARKS.md again."
+  <set>-flat. sure adds Jev's sure answers to each spec's tests and saves the set as <set>-sure.
+  plan lets Jev pick the wording of the first step and saves the set as <set>-plan. Every run, and clojure -M:bench report alone, writes BENCHMARKS.md again."
   (:require [clojure.java.io :as io]
             [clojure.pprint :refer [pprint]]
             [clojure.string :as str]
@@ -17,7 +19,8 @@
             [cljjev.oracle :refer [second-look sure-tests]]
             [cljjev.policy :refer [flat-policy mock-policy]]
             [cljjev.report :as report]
-            [cljjev.validate :refer [run-tests]])
+            [cljjev.validate :refer [run-tests]]
+            [cljjev.wording :as wording])
   (:import (java.time LocalDateTime)
            (java.time.format DateTimeFormatter)))
 
@@ -185,7 +188,7 @@
   or the answers of an earlier search. Returns {:spec :passed :checked :calls :seconds
   :tested :edit :program :asked}: passed on the tests, checked on the hidden ones too;
   tested counts the programs local repair ran, asked holds the tests from Jev."
-  [spec make-policy flow sure solved part?]
+  [spec make-policy flow sure plan? solved part?]
   (let [calls (atom 0)
         inner (make-policy)
         policy (fn [state questions]
@@ -197,11 +200,14 @@
               (let [asked (cond (vector? sure) sure
                                 sure (without-checks spec (sure-tests spec policy))
                                 :else [])
-                    out (second-look (library/solve spec policy solved :flow flow :tests asked)
+                    questions (if plan? (wording/questions spec policy solved) {})
+                    out (second-look (library/solve spec policy solved :flow flow :tests asked
+                                                    :questions questions)
                                      spec asked policy)
                     source (g/source (g/best out))
                     passed (g/passed? out)]
                 {:passed passed :asked asked :dropped (:dropped out)
+                 :wording (when (seq questions) "last step")
                  :checked (and passed (checked? spec (str (apply str (map :source solved)) source)))
                  :tested (:tested out) :edit (:edit (g/best out))
                  :program (str/join " " (drop 2 (str/split (str/trim source) #"\s+")))})
@@ -221,10 +227,10 @@
   passes its own tests, and a part that fails is searched once more, both as on the command
   line. Returns the main's result with the calls, seconds and local programs of the whole
   chain, and its parts' results in :parts; :attempts 2 marks a part that was searched twice."
-  [chain make-policy flow sure?]
+  [chain make-policy flow sure? plan?]
   (let [done (reduce (fn [done spec]
                        (let [part? (not= spec (peek chain))
-                             solve #(run-spec spec make-policy flow %
+                             solve #(run-spec spec make-policy flow % plan?
                                               (for [r done :when (:passed r)]
                                                 (library/entry (:spec r) {:code (:program r)}))
                                               part?)
@@ -274,7 +280,7 @@
                           :else #(jev/client (api-key)))
         results (vec (for [r (range runs)]
                        (do (when (> runs 1) (println (str "\nrun " (inc r) " of " runs)))
-                           (let [rs (mapv #(run-chain % make-policy flow (argv "sure")) specs)]
+                           (let [rs (mapv #(run-chain % make-policy flow (argv "sure") (argv "plan")) specs)]
                              (println (str "\n" (count (filter :checked rs)) "/" (count specs) " passed, "
                                            (count (remove :checked (filter :passed rs)))
                                            " more only fit the spec's tests, "
@@ -283,7 +289,9 @@
     (when (> runs 1)
       (println (stats "passed:" (map #(count (filter :checked %)) results)))
       (println (stats "API calls:" (map #(reduce + (map :calls %)) results))))
-    (save! (str set-name (when (argv "flat") "-flat") (when (argv "sure") "-sure")) flow
+    (save! (str set-name (when (argv "flat") "-flat") (when (argv "sure") "-sure")
+                (when (argv "plan") "-plan"))
+           flow
            (argv "--mock") results)))
 
 (defn -main [& args]

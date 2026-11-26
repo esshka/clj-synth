@@ -24,6 +24,12 @@ Planned work, highest priority first. Move an item to [CHANGELOG.md](CHANGELOG.m
   36 with Jev, so Jev's answers carry this search. That baseline starts from one tiny program and
   its small changes. A search that builds every small program from the inputs upward, and merges
   those that give the same values on the tests, is the fair rival and is not built.
+- [ ] **Keep Jev's tests inside the domain of the spec.** With `--plan`, `choose` reaches the right
+  formula, and that formula fails only Jev's tests with k above n: `(= 0 (choose 4 6))`,
+  `(= 0 (choose 0 5))`, `(= 28 (choose 2 8))`. The spec's own tests all have k at most n. A test
+  on which the best program gives an error, not a wrong value, needs its own second look.
+- [ ] **Measure `--plan` on basic, hard and held.** It has one live run, on `split`. The probe says
+  the first step stays right on 21 of 29 specs against 22, which is a proxy and not a score.
 - [ ] **Let Jev divide: probed, not built.** Several `SPEC` arguments let a person split a hard
   function into parts (`src/cljjev/library.clj`). On 2026-11-26 a split by Jev was probed on the
   mains of the `split` set. Jev picked words of the spec and a shape for a helper (for example
@@ -50,10 +56,10 @@ Planned work, highest priority first. Move an item to [CHANGELOG.md](CHANGELOG.m
   loop, every?). A fitting recursion shape sharpened the first pick (`size` 0.27 to 0.59), but it
   also pulled `rev`, `count-evens` and `count-above` off `reduce`, and the fold shape got under
   0.1. Do not add shapes without a rule for when to offer them.
-- [ ] **Make Jev's tests safe enough to be the default.** `--sure` adds Jev's sure answers as tests.
-  In one live run of each set it removed every program that only fits its tests on basic, hard and
-  held (`power`, `largest`, `dot` passed), and it cost one pass on held: `(= 35 (square-sum 5))` is
-  wrong and failed a correct program. Open points:
+- [ ] **Decide if Jev's tests are the default.** `--sure` adds Jev's sure answers as tests. In two
+  live runs of each set it removed every program that only fits its tests on basic, hard and held
+  (`power`, `largest`, `dot` passed), lost no pass against the old scores once the second look was
+  in, and cost about a fifth more API calls. Open points:
   - One wrong test fails a right program. A second look now drops a number test that Jev leaves
     when it sees the program's number; it has met one wrong test so far. It comes after the
     search has spent its tries (109 calls for `square-sum`), and a wrong yes or no test, or two
@@ -62,8 +68,6 @@ Planned work, highest priority first. Move an item to [CHANGELOG.md](CHANGELOG.m
   - A function that returns a collection gets no tests, and a number above 40 is not on offer, so
     `(power 2 8)` is never asked. Shrink still covers `power`.
   - `longest` got one test and is still returned as `(collatz n)`.
-  - One run of each set is a sample. The held set lost a pass, so this needs more runs before a
-    change of the default.
 - [ ] **Repair bugs that need two distant changes.** Local repair fixes a program one small change
   away, or two when the first already brings it closer to passing. Two changes far apart that only
   help together are left to Jev's pair edits, which are few.

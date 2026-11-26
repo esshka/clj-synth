@@ -1,0 +1,247 @@
+{:date "2026-11-26T12:32:00.785177",
+ :set "hard-sure",
+ :flow :score,
+ :mock false,
+ :runs
+ [[{:asked
+    ["(= 1 (gcd 1 1))"
+     "(= 1 (gcd 2 3))"
+     "(= 1 (gcd 3 2))"
+     "(= 2 (gcd 4 6))"
+     "(= 2 (gcd 6 4))"
+     "(= 5 (gcd 0 5))"
+     "(= 7 (gcd 7 7))"
+     "(= 2 (gcd 2 8))"
+     "(= 3 (gcd 9 3))"],
+    :passed true,
+    :dropped nil,
+    :edit nil,
+    :parts [],
+    :seconds 2.855397416,
+    :spec
+    "greatest common divisor of a and b (= 6 (gcd 12 18)) (= 1 (gcd 7 5)) (= 5 (gcd 5 0))",
+    :checked true,
+    :calls 11,
+    :program "(defn gcd [a b] (if (zero? b) a (gcd b (mod a b))))",
+    :tested 0}
+   {:asked
+    ["(= 1 (largest [1]))"
+     "(= 3 (largest [1 2 3]))"
+     "(= 3 (largest [3 1 2]))"
+     "(= 2 (largest [2 2]))"
+     "(= 5 (largest [4 0 5]))"
+     "(= 2 (largest [-1 2]))"],
+    :passed true,
+    :dropped nil,
+    :edit
+    "`defn body`: max -> reduce; shrink of (defn largest [xs] (reduce max (first xs) (rest xs)))",
+    :parts [],
+    :seconds 13.198514042,
+    :spec
+    "largest number in xs (= 9 (largest [3 9 2])) (= -1 (largest [-5 -1 -3]))",
+    :checked true,
+    :calls 15,
+    :program "(defn largest [xs] (reduce max (first xs) xs))",
+    :tested 2034}
+   {:asked
+    ["(= 0 (count-evens [1]))"
+     "(= 1 (count-evens [1 2 3]))"
+     "(= 1 (count-evens [3 1 2]))"
+     "(= 2 (count-evens [2 2]))"
+     "(= 2 (count-evens [4 0 5]))"
+     "(= 1 (count-evens [-1 2]))"],
+    :passed true,
+    :dropped nil,
+    :edit nil,
+    :parts [],
+    :seconds 2.583630333,
+    :spec
+    "count the even numbers in xs (= 2 (count-evens [1 2 3 4])) (= 0 (count-evens []))",
+    :checked true,
+    :calls 13,
+    :program
+    "(defn count-evens [xs] (reduce (fn [acc x] (if (even? x) (inc acc) acc)) 0 xs))",
+    :tested 0}
+   {:asked
+    ["(= 0 (occurrences 0 [1 2]))"
+     "(= 1 (occurrences 1 [3 1 2]))"
+     "(= 0 (occurrences 3 [2 2]))"
+     "(= 0 (occurrences 2 [4 0 5]))"
+     "(= 0 (occurrences 5 [1]))"],
+    :passed true,
+    :dropped nil,
+    :edit nil,
+    :parts [],
+    :seconds 2.874946542,
+    :spec
+    "how many times x occurs in xs (= 2 (occurrences 3 [3 1 3])) (= 0 (occurrences 9 [1 2]))",
+    :checked true,
+    :calls 14,
+    :program
+    "(defn occurrences [x xs] (reduce (fn [acc i] (if (= x i) (inc acc) acc)) 0 xs))",
+    :tested 0}
+   {:asked [],
+    :passed true,
+    :dropped nil,
+    :edit nil,
+    :parts [],
+    :seconds 0.901704,
+    :spec
+    "the numbers from 0 up to but not including n (= [0 1 2] (upto 3)) (= [] (upto 0))",
+    :checked true,
+    :calls 4,
+    :program "(defn upto [n] (range 0 n))",
+    :tested 0}
+   {:asked [],
+    :passed true,
+    :dropped nil,
+    :edit
+    "local: `if test`: (> n 0) -> (and (> n 0) (not (empty? xs)))",
+    :parts [],
+    :seconds 19.174891792,
+    :spec
+    "the first n items of xs (= [1 2] (take-n 2 [1 2 3])) (= [] (take-n 0 [1 2])) (= [1] (take-n 5 [1]))",
+    :checked true,
+    :calls 41,
+    :program
+    "(defn take-n [n xs] (if (and (> n 0) (not (empty? xs))) (cons (first xs) (take-n (dec n) (rest xs))) []))",
+    :tested 20302}
+   {:asked
+    ["(= 1 (average [1]))"
+     "(= 2 (average [3 1 2]))"
+     "(= 2 (average [2 2]))"
+     "(= 3 (average [4 0 5]))"],
+    :passed true,
+    :dropped nil,
+    :edit nil,
+    :parts [],
+    :seconds 1.716544958,
+    :spec
+    "average of the numbers in xs (= 2 (average [1 2 3])) (= 5 (average [5]))",
+    :checked true,
+    :calls 9,
+    :program "(defn average [xs] (/ (reduce + 0 xs) (count xs)))",
+    :tested 0}
+   {:asked
+    ["(= 1 (count-above 2 [1 2 3]))"
+     "(= 2 (count-above 0 [1 2]))"
+     "(= 2 (count-above 1 [3 1 2]))"
+     "(= 0 (count-above 3 [2 2]))"
+     "(= 2 (count-above 2 [4 0 5]))"
+     "(= 0 (count-above 5 [1]))"],
+    :passed true,
+    :dropped nil,
+    :edit nil,
+    :parts [],
+    :seconds 2.9496485,
+    :spec
+    "how many numbers in xs are greater than t (= 2 (count-above 3 [1 4 5 2])) (= 0 (count-above 9 [1]))",
+    :checked true,
+    :calls 15,
+    :program
+    "(defn count-above [t xs] (reduce (fn [acc x] (if (> x t) (+ 1 acc) acc)) 0 xs))",
+    :tested 0}
+   {:asked ["(= 6 (dot [1 1 1] [2 2 2]))" "(= 0 (dot [0 5] [5 0]))"],
+    :passed true,
+    :dropped nil,
+    :edit "`+ b`: restart * -> local:x",
+    :parts [],
+    :seconds 22.401183917,
+    :spec
+    "dot product of xs and ys (= 32 (dot [1 2 3] [4 5 6])) (= 0 (dot [] []))",
+    :checked true,
+    :calls 63,
+    :program
+    "(defn dot [xs ys] (reduce (fn [acc x] (+ acc x)) 0 (map * xs ys)))",
+    :tested 25081}
+   {:asked
+    ["(= 1 (item-at [1 2 3] 0))"
+     "(= 3 (item-at [1 2 3] 2))"
+     "(= 0 (item-at [4 0 5] 1))"
+     "(= 7 (item-at [7] 0))"],
+    :passed true,
+    :dropped nil,
+    :edit "`defn body`: rest -> if",
+    :parts [],
+    :seconds 11.327260917,
+    :spec
+    "the item at index n of xs, without nth (= 30 (item-at [10 20 30] 2)) (= 10 (item-at [10] 0))",
+    :checked true,
+    :calls 37,
+    :program
+    "(defn item-at [xs n] (if (zero? n) (first xs) (item-at (rest xs) (dec n))))",
+    :tested 3876}
+   {:asked
+    ["(= 1 (digit-sum 1))"
+     "(= 2 (digit-sum 2))"
+     "(= 3 (digit-sum 3))"
+     "(= 4 (digit-sum 4))"
+     "(= 5 (digit-sum 5))"
+     "(= 6 (digit-sum 6))"
+     "(= 7 (digit-sum 7))"
+     "(= 8 (digit-sum 8))"
+     "(= 1 (digit-sum 10))"
+     "(= 2 (digit-sum 11))"
+     "(= 3 (digit-sum 12))"],
+    :passed true,
+    :dropped nil,
+    :edit nil,
+    :parts [],
+    :seconds 3.417606041,
+    :spec
+    "sum of the decimal digits of n (= 6 (digit-sum 123)) (= 0 (digit-sum 0)) (= 9 (digit-sum 9))",
+    :checked true,
+    :calls 19,
+    :program
+    "(defn digit-sum [n] (loop [x n acc 0] (if (zero? x) acc (recur (quot x 10) (+ (mod x 10) acc)))))",
+    :tested 0}
+   {:asked
+    ["(= false (prime? 0))"
+     "(= true (prime? 5))"
+     "(= false (prime? 6))"
+     "(= false (prime? 10))"
+     "(= true (prime? 11))"
+     "(= false (prime? 12))"],
+    :passed false,
+    :dropped nil,
+    :edit "`cond then2`: lit:false -> =",
+    :parts [],
+    :seconds 58.145543,
+    :spec
+    "is n a prime number (= true (prime? 7)) (= false (prime? 8)) (= false (prime? 1)) (= true (prime? 2)) (= false (prime? 9)) (= false (prime? 15))",
+    :checked false,
+    :calls 231,
+    :program
+    "(defn prime? [n] (cond (<= n 1) false (even? n) (= 2 n) :else (cond (< n 2) true (< n 2) true :else true)))",
+    :tested 30000}
+   {:asked ["(= 3 (collatz 8))"],
+    :passed true,
+    :dropped nil,
+    :edit "local: `+ a`: 3 -> (* 3 x)",
+    :parts [],
+    :seconds 7.215124833,
+    :spec
+    "number of collatz steps from n down to 1 (= 0 (collatz 1)) (= 1 (collatz 2)) (= 7 (collatz 3)) (= 5 (collatz 5)) (= 16 (collatz 7))",
+    :checked true,
+    :calls 25,
+    :program
+    "(defn collatz [n] (loop [x n steps 0] (if (= 1 x) steps (recur (if (even? x) (/ x 2) (+ (* 3 x) 1)) (+ 1 steps)))))",
+    :tested 6000}
+   {:asked
+    ["(= 1 (sum-odd [1]))"
+     "(= 4 (sum-odd [3 1 2]))"
+     "(= 0 (sum-odd [2 2]))"
+     "(= 5 (sum-odd [4 0 5]))"
+     "(= -1 (sum-odd [-1 2]))"],
+    :passed true,
+    :dropped nil,
+    :edit nil,
+    :parts [],
+    :seconds 2.502004458,
+    :spec
+    "sum of the odd numbers in xs (= 4 (sum-odd [1 2 3])) (= 0 (sum-odd [2]))",
+    :checked true,
+    :calls 14,
+    :program
+    "(defn sum-odd [xs] (reduce (fn [acc x] (if (odd? x) (+ acc x) acc)) 0 xs))",
+    :tested 0}]]}

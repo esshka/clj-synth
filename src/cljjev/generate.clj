@@ -152,12 +152,12 @@
       (seq inside) (assoc-in [:hole :inside] (vec inside))
       feedback (assoc :previous_attempt feedback))))
 
-(defn- decide [ask state options path hole]
+(defn- decide [ask asked state options path hole]
   (if (= 1 (count options))
     {:path path :hole hole :choice (key (first options)) :probs {}}
     (let [criteria (ordered (for [[k [text _]] options] [k text]))
           question {:type "choice"
-                    :instructions (cond-> prod-question
+                    :instructions (cond-> asked
                                     (:previous_attempt state) (str retry-note))
                     :criteria criteria}
           answer (get (ask state {"prod" question}) "prod")
@@ -193,8 +193,8 @@
                               (= (:hole planned) hole)
                               (contains? options (:choice planned)))
                        planned
-                       (doto (decide ask (state-of pools tree path hole env feedback)
-                                     options path hole)
+                       (doto (decide ask (get (:questions pools) (:hint hole) prod-question)
+                                     (state-of pools tree path hole env feedback) options path hole)
                          log))]
         (recur (put-at tree path (second (get options (:choice decision))))
                (conj made decision)))
@@ -646,11 +646,11 @@
   "Searches for a program meeting spec. Returns {:attempts :calls :tested}: tested counts
   local repair's programs. A duplicate program costs no try, a replayed decision no API call.
 
-  Options: :tests (extra test forms), :limits, :library (see library/solve), and the effects
-  :run (tests), :trace (traced values), :batch (local repair's and shrink's runs; nil turns
-  both off), :log (each new decision), :log-attempt (each attempt), and :flow, :score (Score
-  finds the bug, a formula ranks edits) or :pick (Jev picks the edit)."
-  [spec policy & {:keys [tests limits run log log-attempt trace flow batch library]
+  Options: :tests (extra test forms), :limits, :library (see library/solve), :questions (a
+  hole's hint to the question asked there), and the effects :run (tests), :trace (traced
+  values), :batch (local repair and shrink; nil turns both off), :log (each new decision),
+  :log-attempt (each attempt), and :flow, :score (Score ranks edits) or :pick (Jev picks one)."
+  [spec policy & {:keys [tests limits run log log-attempt trace flow batch library questions]
                   :or {tests []
                        limits default-limits
                        run run-tests
@@ -661,7 +661,7 @@
                        flow :score}}]
   (let [calls (atom 0)
         ctx {:ask (asker policy calls)
-             :pools (with-library (extract spec tests) library)
+             :pools (assoc (with-library (extract spec tests) library) :questions questions)
              :limits limits
              :run run
              :log log

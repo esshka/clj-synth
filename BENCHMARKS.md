@@ -132,16 +132,16 @@ Each main function is solved after its parts, which are then options for it (`sp
 | `first-or-zero` | OVER | 3 | `(defn first-or-zero [item] (* (count item) 2))` |
 | `clamp` | FAIL | 40 | `(defn clamp [x between lo] 0)` |
 
-### `basic-sure`, 2026-11-26 11:52, flow :score
+### `basic-sure`, 2026-11-26 12:29, flow :score
 
 | Function | Result | API calls | Program of the last run |
 | --- | --- | --- | --- |
-| `factorial` | PASS | 11 | `(defn factorial [n] (if (zero? n) 1 (* n (factorial (dec n)))))` |
+| `factorial` | PASS | 11 | `(defn factorial [n] (if (zero? n) 1 (* (factorial (dec n)) n)))` |
 | `max2` | PASS | 5 | `(defn max2 [a b] (max a b))` |
 | `sum-list` | PASS | 6 | `(defn sum-list [xs] (reduce + 0 xs))` |
 | `squares` | PASS | 8 | `(defn squares [xs] (map (fn [x] (* x x)) xs))` |
 | `size` | PASS | 11 | `(defn size [coll] (if (empty? coll) 0 (+ 1 (size (rest coll)))))` |
-| `fib` | PASS | 85 | `(defn fib [n] (if (< n 2) n (+ (fib (- n 1)) (fib (- n 2)))))` |
+| `fib` | PASS | 16 | `(defn fib [n] (if (<= n 1) n (+ (fib (- n 2)) (fib (dec n)))))` |
 | `positives` | PASS | 4 | `(defn positives [xs] (filter pos? xs))` |
 | `sum-squares` | PASS | 16 | `(defn sum-squares [xs] (reduce (fn [acc x] (+ acc x)) 0 (map (fn [x] (* x x)) xs)))` |
 | `power` | PASS | 21 | `(defn power [b e] (loop [i e acc 1] (if (zero? i) acc (recur (dec i) (* b acc)))))` |
@@ -171,23 +171,23 @@ Each main function is solved after its parts, which are then options for it (`sp
 | `collatz` | FAIL | 40 | `(defn collatz [number] 0)` |
 | `sum-odd` | OVER | 3 | `(defn sum-odd [sum] (* (dec (count sum)) 2))` |
 
-### `hard-sure`, 2026-11-26 11:54, flow :score
+### `hard-sure`, 2026-11-26 12:32, flow :score
 
 | Function | Result | API calls | Program of the last run |
 | --- | --- | --- | --- |
 | `gcd` | PASS | 11 | `(defn gcd [a b] (if (zero? b) a (gcd b (mod a b))))` |
 | `largest` | PASS | 15 | `(defn largest [xs] (reduce max (first xs) xs))` |
 | `count-evens` | PASS | 13 | `(defn count-evens [xs] (reduce (fn [acc x] (if (even? x) (inc acc) acc)) 0 xs))` |
-| `occurrences` | PASS | 14 | `(defn occurrences [x xs] (reduce (fn [acc i] (if (= i x) (inc acc) acc)) 0 xs))` |
+| `occurrences` | PASS | 14 | `(defn occurrences [x xs] (reduce (fn [acc i] (if (= x i) (inc acc) acc)) 0 xs))` |
 | `upto` | PASS | 4 | `(defn upto [n] (range 0 n))` |
-| `take-n` | PASS | 31 | `(defn take-n [n xs] (if (and (> n 0) (not (empty? xs))) (cons (first xs) (take-n (dec n) (rest xs))) []))` |
+| `take-n` | PASS | 41 | `(defn take-n [n xs] (if (and (> n 0) (not (empty? xs))) (cons (first xs) (take-n (dec n) (rest xs))) []))` |
 | `average` | PASS | 9 | `(defn average [xs] (/ (reduce + 0 xs) (count xs)))` |
 | `count-above` | PASS | 15 | `(defn count-above [t xs] (reduce (fn [acc x] (if (> x t) (+ 1 acc) acc)) 0 xs))` |
-| `dot` | PASS | 58 | `(defn dot [xs ys] (reduce (fn [acc x] (+ acc x)) 0 (map * xs ys)))` |
-| `item-at` | PASS | 34 | `(defn item-at [xs n] (if (zero? n) (first xs) (item-at (rest xs) (dec n))))` |
+| `dot` | PASS | 63 | `(defn dot [xs ys] (reduce (fn [acc x] (+ acc x)) 0 (map * xs ys)))` |
+| `item-at` | PASS | 37 | `(defn item-at [xs n] (if (zero? n) (first xs) (item-at (rest xs) (dec n))))` |
 | `digit-sum` | PASS | 19 | `(defn digit-sum [n] (loop [x n acc 0] (if (zero? x) acc (recur (quot x 10) (+ (mod x 10) acc)))))` |
-| `prime?` | FAIL | 164 | `(defn prime? [n] (cond (<= n 1) false (even? n) (= 2 n) :else (cond (< n 2) true (< n 2) true :else true)))` |
-| `collatz` | PASS | 25 | `(defn collatz [n] (loop [x n steps 0] (if (<= x 1) steps (recur (if (even? x) (/ x 2) (+ (* 3 x) 1)) (+ 1 steps)))))` |
+| `prime?` | FAIL | 231 | `(defn prime? [n] (cond (<= n 1) false (even? n) (= 2 n) :else (cond (< n 2) true (< n 2) true :else true)))` |
+| `collatz` | PASS | 25 | `(defn collatz [n] (loop [x n steps 0] (if (= 1 x) steps (recur (if (even? x) (/ x 2) (+ (* 3 x) 1)) (+ 1 steps)))))` |
 | `sum-odd` | PASS | 14 | `(defn sum-odd [xs] (reduce (fn [acc x] (if (odd? x) (+ acc x) acc)) 0 xs))` |
 
 ### `held-flat`, 2026-11-26 11:42, flow :score
@@ -207,49 +207,76 @@ Each main function is solved after its parts, which are then options for it (`sp
 | `second-item` | OVER | 3 | `(defn second-item [second] (inc (first second)))` |
 | `spread` | OVER | 3 | `(defn spread [largest] (* (count (rest largest)) 2))` |
 
-### `held-sure`, 2026-11-26 11:56, flow :score
+### `held-sure`, 2026-11-26 12:33, flow :score
 
 | Function | Result | API calls | Program of the last run |
 | --- | --- | --- | --- |
 | `product` | PASS | 6 | `(defn product [xs] (reduce * 1 xs))` |
-| `smallest` | PASS | 29 | `(defn smallest [xs] (reduce min (first xs) xs))` |
+| `smallest` | PASS | 34 | `(defn smallest [xs] (reduce min (first xs) xs))` |
 | `count-neg` | PASS | 13 | `(defn count-neg [xs] (reduce (fn [acc x] (if (neg? x) (inc acc) acc)) 0 xs))` |
 | `sum-to` | PASS | 9 | `(defn sum-to [n] (reduce + 0 (range 1 (inc n))))` |
 | `doubled` | PASS | 8 | `(defn doubled [xs] (map (fn [x] (* 2 x)) xs))` |
 | `all-even?` | PASS | 5 | `(defn all-even? [xs] (every? even? xs))` |
 | `digits` | PASS | 6 | `(defn digits [n] (count (str n nil)))` |
-| `drop-n` | PASS | 32 | `(defn drop-n [n xs] (if (> n 0) (drop-n (dec n) (rest xs)) xs))` |
+| `drop-n` | PASS | 31 | `(defn drop-n [n xs] (if (> n 0) (rest (drop-n (dec n) xs)) xs))` |
 | `no-zeros` | PASS | 8 | `(defn no-zeros [xs] (filter (fn [x] (not (zero? x))) xs))` |
-| `square-sum` | FAIL | 109 | `(defn square-sum [n] (reduce + 0 (map (fn [x] (* x x)) (range 1 (inc n)))))` |
+| `square-sum` | PASS | 118 | `(defn square-sum [n] (reduce + 0 (map (fn [x] (* x x)) (range 1 (inc n)))))` |
 | `second-item` | PASS | 5 | `(defn second-item [xs] (first (rest xs)))` |
-| `spread` | FAIL | 196 | `(defn spread [xs] (- (max (first xs) (reduce max (rest xs) nil)) (min (first xs) (reduce min (rest xs) nil))))` |
+| `spread` | FAIL | 183 | `(defn spread [xs] (- (max (first xs) (max (max (max (max (first xs) (first xs)) (first (rest xs))) (first (rest xs))) (first (rest xs)))) (min (first xs) (first (rest xs)))))` |
 
-### `split-sure`, 2026-11-26 12:01, flow :score
+### `split-sure`, 2026-11-26 12:37, flow :score
 
 | Function | Result | API calls | Program of the last run |
 | --- | --- | --- | --- |
-| `prime?` (part) | FAIL in 2 searches | 396 | `(defn prime? [n] (cond (<= n 1) false (even? n) (= 2 n) :else (cond (< 2 n) true (< n 2) false :else true)))` |
-| `prime-sum` | FAIL | 540 | `(defn prime-sum [n] (reduce + 0 (filter (fn [x] (< x n)) (range 2 n))))` |
+| `prime?` (part) | FAIL in 2 searches | 364 | `(defn prime? [n] (cond (<= n 1) false (even? n) false :else (cond (< 2 n) (cond (zero? (mod n 3)) false (zero? (mod n 3)) false :else true) (< n 2) false :else true)))` |
+| `prime-sum` | FAIL | 504 | `(defn prime-sum [n] (reduce + 0 (filter (fn [x] (< x n)) (range 2 n))))` |
 | `gcd` (part) | PASS | 11 | `(defn gcd [a b] (if (zero? b) a (gcd b (mod a b))))` |
 | `lcm` | PASS | 17 | `(defn lcm [a b] (quot (* a b) (gcd a b)))` |
 | `digit-sum` (part) | PASS | 19 | `(defn digit-sum [n] (loop [x n acc 0] (if (zero? x) acc (recur (quot x 10) (+ (mod x 10) acc)))))` |
-| `digital-root` | PASS | 29 | `(defn digital-root [n] (if (< n 10) n (digital-root (digit-sum n))))` |
+| `digital-root` | PASS | 30 | `(defn digital-root [n] (if (< n 10) n (digital-root (digit-sum n))))` |
 | `rev` (part) | PASS | 10 | `(defn rev [coll] (reduce (fn [acc x] (cons x acc)) [] coll))` |
 | `palindrome?` | PASS | 16 | `(defn palindrome? [xs] (= (rev xs) xs))` |
-| `factorial` (part) | PASS | 11 | `(defn factorial [n] (if (zero? n) 1 (* n (factorial (dec n)))))` |
-| `choose` | FAIL | 93 | `(defn choose [n k] (if (< k n) (choose (dec n) k) 1))` |
-| `fib` (part) | PASS in 2 searches | 97 | `(defn fib [n] (if (< n 2) n (+ (fib (- n 2)) (fib (- n 1)))))` |
-| `fib-sum` | PASS | 117 | `(defn fib-sum [n] (loop [sum 0 up 1 nth n] (if (zero? nth) sum (recur (+ sum up) (inc sum) (dec nth)))))` |
+| `factorial` (part) | PASS | 11 | `(defn factorial [n] (if (zero? n) 1 (* (factorial (dec n)) n)))` |
+| `choose` | FAIL | 94 | `(defn choose [n k] (if (< n k) 0 (choose (dec n) k)))` |
+| `fib` (part) | PASS | 18 | `(defn fib [n] (if (<= n 1) n (+ (fib (- n 1)) (fib (- n 2)))))` |
+| `fib-sum` | PASS | 38 | `(defn fib-sum [n] (loop [sum 0 up 1 nth n] (if (zero? nth) sum (recur (+ sum up) (inc sum) (dec nth)))))` |
 | `collatz` (part) | PASS | 25 | `(defn collatz [n] (loop [x n steps 0] (if (<= x 1) steps (recur (if (even? x) (/ x 2) (+ (* 3 x) 1)) (+ 1 steps)))))` |
 | `longest` | OVER | 37 | `(defn longest [n] (collatz n))` |
 | `divides?` (part) | PASS | 6 | `(defn divides? [d n] (zero? (mod n d)))` |
 | `divisor-sum` (part) | PASS | 15 | `(defn divisor-sum [n] (reduce + 0 (filter (fn [x] (divides? x n)) (range 1 n))))` |
 | `perfect?` | PASS | 26 | `(defn perfect? [n] (= (divisor-sum n) n))` |
 
+### `split-sure-plan`, 2026-11-26 14:39, flow :score
+
+| Function | Result | API calls | Program of the last run |
+| --- | --- | --- | --- |
+| `prime?` (part) | PASS | 113 | `(defn prime? [n] (cond (<= n 1) false (= 2 n) true :else (every? (fn [i] (not (zero? (mod n i)))) (range 2 n))))` |
+| `prime-sum` | PASS | 124 | `(defn prime-sum [n] (reduce + 0 (filter prime? (range 2 n))))` |
+| `gcd` (part) | PASS | 12 | `(defn gcd [a b] (if (zero? b) a (gcd b (mod a b))))` |
+| `lcm` | PASS | 57 | `(defn lcm [a b] (/ (* a b) (gcd a b)))` |
+| `digit-sum` (part) | PASS | 20 | `(defn digit-sum [n] (loop [x n acc 0] (if (zero? x) acc (recur (quot x 10) (+ (mod x 10) acc)))))` |
+| `digital-root` | PASS | 31 | `(defn digital-root [n] (if (< n 10) n (digital-root (digit-sum n))))` |
+| `rev` (part) | PASS | 11 | `(defn rev [coll] (reduce (fn [acc x] (cons x acc)) [] coll))` |
+| `palindrome?` | PASS | 18 | `(defn palindrome? [xs] (= (rev xs) xs))` |
+| `factorial` (part) | PASS | 12 | `(defn factorial [n] (if (zero? n) 1 (* (factorial (dec n)) n)))` |
+| `choose` | FAIL | 87 | `(defn choose [n k] (/ (factorial n) (/ (factorial k) (factorial (- n k)))))` |
+| `fib` (part) | PASS | 64 | `(defn fib [n] (if (< n 2) n (+ (fib (- n 2)) (fib (dec n)))))` |
+| `fib-sum` | PASS | 86 | `(defn fib-sum [n] (loop [sum 0 up 1 nth n] (if (zero? nth) sum (recur (+ sum up) (inc sum) (dec nth)))))` |
+| `collatz` (part) | PASS | 26 | `(defn collatz [n] (loop [x n steps 0] (if (<= x 1) steps (recur (if (even? x) (/ x 2) (+ (* 3 x) 1)) (+ 1 steps)))))` |
+| `longest` | OVER | 39 | `(defn longest [n] (collatz n))` |
+| `divides?` (part) | PASS | 7 | `(defn divides? [d n] (zero? (mod n d)))` |
+| `divisor-sum` (part) | PASS | 16 | `(defn divisor-sum [n] (reduce + 0 (filter (fn [x] (divides? x n)) (range 1 n))))` |
+| `perfect?` | PASS | 30 | `(defn perfect? [n] (= (divisor-sum n) n))` |
+
 ## All runs
 
 | Date | Set | Flow | PASS | OVER | FAIL | API calls |
 | --- | --- | --- | --- | --- | --- | --- |
+| 2026-11-26 14:39 | `split-sure-plan` | :score | 6 | 1 | 1 | 472 |
+| 2026-11-26 12:37 | `split-sure` | :score | 5 | 1 | 2 | 762 |
+| 2026-11-26 12:33 | `held-sure` | :score | 11 | 0 | 1 | 426 |
+| 2026-11-26 12:32 | `hard-sure` | :score | 13 | 0 | 1 | 511 |
+| 2026-11-26 12:29 | `basic-sure` | :score | 15 | 0 | 0 | 152 |
 | 2026-11-26 12:01 | `split-sure` | :score | 5 | 1 | 2 | 875 |
 | 2026-11-26 11:56 | `held-sure` | :score | 10 | 0 | 2 | 426 |
 | 2026-11-26 11:54 | `hard-sure` | :score | 13 | 0 | 1 | 426 |

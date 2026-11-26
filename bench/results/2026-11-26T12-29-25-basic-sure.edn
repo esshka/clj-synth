@@ -1,0 +1,249 @@
+{:date "2026-11-26T12:29:25.531758",
+ :set "basic-sure",
+ :flow :score,
+ :mock false,
+ :runs
+ [[{:asked ["(= 1 (factorial 1))" "(= 2 (factorial 2))"],
+    :passed true,
+    :dropped nil,
+    :edit nil,
+    :parts [],
+    :seconds 3.086439125,
+    :spec
+    "write a recursive factorial of n (= 120 (factorial 5)) (= 1 (factorial 0))",
+    :checked true,
+    :calls 11,
+    :program
+    "(defn factorial [n] (if (zero? n) 1 (* (factorial (dec n)) n)))",
+    :tested 0}
+   {:asked
+    ["(= 1 (max2 1 1))"
+     "(= 3 (max2 2 3))"
+     "(= 3 (max2 3 2))"
+     "(= 6 (max2 4 6))"
+     "(= 6 (max2 6 4))"
+     "(= 5 (max2 5 0))"
+     "(= 5 (max2 0 5))"
+     "(= 7 (max2 7 7))"
+     "(= 8 (max2 2 8))"
+     "(= 9 (max2 9 3))"],
+    :passed true,
+    :dropped nil,
+    :edit nil,
+    :parts [],
+    :seconds 0.927657958,
+    :spec
+    "return the larger of a and b (= 5 (max2 5 3)) (= 7 (max2 2 7))",
+    :checked true,
+    :calls 5,
+    :program "(defn max2 [a b] (max a b))",
+    :tested 0}
+   {:asked
+    ["(= 1 (sum-list [1]))"
+     "(= 6 (sum-list [3 1 2]))"
+     "(= 4 (sum-list [2 2]))"
+     "(= 9 (sum-list [4 0 5]))"
+     "(= 1 (sum-list [-1 2]))"],
+    :passed true,
+    :dropped nil,
+    :edit nil,
+    :parts [],
+    :seconds 1.210843667,
+    :spec
+    "sum the numbers in xs (= 6 (sum-list [1 2 3])) (= 0 (sum-list []))",
+    :checked true,
+    :calls 6,
+    :program "(defn sum-list [xs] (reduce + 0 xs))",
+    :tested 0}
+   {:asked [],
+    :passed true,
+    :dropped nil,
+    :edit nil,
+    :parts [],
+    :seconds 1.708915375,
+    :spec
+    "square every number in xs (= [1 4 9] (squares [1 2 3])) (= [] (squares []))",
+    :checked true,
+    :calls 8,
+    :program "(defn squares [xs] (map (fn [x] (* x x)) xs))",
+    :tested 0}
+   {:asked
+    ["(= 1 (size [1]))"
+     "(= 3 (size [1 2 3]))"
+     "(= 3 (size [3 1 2]))"
+     "(= 3 (size [4 0 5]))"
+     "(= 2 (size [-1 2]))"],
+    :passed true,
+    :dropped nil,
+    :edit nil,
+    :parts [],
+    :seconds 2.517342417,
+    :spec
+    "count the items of coll recursively, without count (= 3 (size [7 8 9])) (= 0 (size []))",
+    :checked true,
+    :calls 11,
+    :program
+    "(defn size [coll] (if (empty? coll) 0 (+ 1 (size (rest coll)))))",
+    :tested 0}
+   {:asked ["(= 1 (fib 2))" "(= 3 (fib 4))"],
+    :passed true,
+    :dropped nil,
+    :edit "`if else`: wrap call:fib in (+ ...)",
+    :parts [],
+    :seconds 9.7611475,
+    :spec
+    "return the nth fibonacci number (= 0 (fib 0)) (= 1 (fib 1)) (= 8 (fib 6)) (= 55 (fib 10))",
+    :checked true,
+    :calls 16,
+    :program
+    "(defn fib [n] (if (<= n 1) n (+ (fib (- n 2)) (fib (dec n)))))",
+    :tested 5949}
+   {:asked [],
+    :passed true,
+    :dropped nil,
+    :edit nil,
+    :parts [],
+    :seconds 0.7663165,
+    :spec
+    "keep only the positive numbers of xs (= [1 2] (positives [1 -3 2])) (= [] (positives [-1]))",
+    :checked true,
+    :calls 4,
+    :program "(defn positives [xs] (filter pos? xs))",
+    :tested 0}
+   {:asked
+    ["(= 1 (sum-squares [1]))"
+     "(= 14 (sum-squares [3 1 2]))"
+     "(= 8 (sum-squares [2 2]))"
+     "(= 5 (sum-squares [-1 2]))"],
+    :passed true,
+    :dropped nil,
+    :edit nil,
+    :parts [],
+    :seconds 2.930430791,
+    :spec
+    "sum of the squares of xs (= 14 (sum-squares [1 2 3])) (= 0 (sum-squares []))",
+    :checked true,
+    :calls 16,
+    :program
+    "(defn sum-squares [xs] (reduce (fn [acc x] (+ acc x)) 0 (map (fn [x] (* x x)) xs)))",
+    :tested 0}
+   {:asked
+    ["(= 1 (power 1 1))" "(= 9 (power 3 2))" "(= 0 (power 0 5))"],
+    :passed true,
+    :dropped nil,
+    :edit "`defn body`: call:power -> loop",
+    :parts [],
+    :seconds 13.37349875,
+    :spec
+    "b raised to the power e (= 8 (power 2 3)) (= 1 (power 5 0))",
+    :checked true,
+    :calls 21,
+    :program
+    "(defn power [b e] (loop [i e acc 1] (if (zero? i) acc (recur (dec i) (* b acc)))))",
+    :tested 4563}
+   {:asked
+    ["(= 1 (abs-val 1))"
+     "(= 2 (abs-val 2))"
+     "(= 3 (abs-val 3))"
+     "(= 5 (abs-val 5))"
+     "(= 6 (abs-val 6))"
+     "(= 7 (abs-val 7))"
+     "(= 8 (abs-val 8))"
+     "(= 9 (abs-val 9))"
+     "(= 10 (abs-val 10))"
+     "(= 11 (abs-val 11))"
+     "(= 12 (abs-val 12))"],
+    :passed true,
+    :dropped nil,
+    :edit nil,
+    :parts [],
+    :seconds 1.642597083,
+    :spec "absolute value of x (= 3 (abs-val -3)) (= 4 (abs-val 4))",
+    :checked true,
+    :calls 9,
+    :program "(defn abs-val [x] (if (neg? x) (- 0 x) x))",
+    :tested 0}
+   {:asked [],
+    :passed true,
+    :dropped nil,
+    :edit "local: `fn body`: (cons acc x) -> (cons x acc)",
+    :parts [],
+    :seconds 3.727160208,
+    :spec
+    "reverse the items of coll (= [3 2 1] (rev [1 2 3])) (= [] (rev []))",
+    :checked true,
+    :calls 10,
+    :program
+    "(defn rev [coll] (reduce (fn [acc x] (cons x acc)) [] coll))",
+    :tested 6000}
+   {:asked
+    ["(= 1 (final [1]))"
+     "(= 2 (final [3 1 2]))"
+     "(= 2 (final [2 2]))"
+     "(= 5 (final [4 0 5]))"
+     "(= 2 (final [-1 2]))"],
+    :passed true,
+    :dropped nil,
+    :edit
+    "local: `if else`: (final (rest xs)) -> (or (final (rest xs)) (first xs))",
+    :parts [],
+    :seconds 12.332671541,
+    :spec
+    "last item of xs, recursively (= 3 (final [1 2 3])) (= 7 (final [7]))",
+    :checked true,
+    :calls 10,
+    :program
+    "(defn final [xs] (if (empty? xs) nil (or (final (rest xs)) (first xs))))",
+    :tested 3936}
+   {:asked
+    ["(= 1 (sign 1))"
+     "(= 1 (sign 2))"
+     "(= 1 (sign 4))"
+     "(= 1 (sign 5))"
+     "(= 1 (sign 6))"
+     "(= 1 (sign 7))"
+     "(= 1 (sign 8))"
+     "(= 1 (sign 9))"
+     "(= 1 (sign 10))"
+     "(= 1 (sign 11))"
+     "(= 1 (sign 12))"],
+    :passed true,
+    :dropped nil,
+    :edit nil,
+    :parts [],
+    :seconds 1.92649,
+    :spec
+    "sign of x: -1, 0 or 1 (= -1 (sign -5)) (= 0 (sign 0)) (= 1 (sign 3))",
+    :checked true,
+    :calls 10,
+    :program "(defn sign [x] (cond (neg? x) -1 (zero? x) 0 :else 1))",
+    :tested 0}
+   {:asked
+    ["(= 1 (first-or-zero [1]))"
+     "(= 1 (first-or-zero [1 2 3]))"
+     "(= 3 (first-or-zero [3 1 2]))"
+     "(= 2 (first-or-zero [2 2]))"
+     "(= 4 (first-or-zero [4 0 5]))"],
+    :passed true,
+    :dropped nil,
+    :edit nil,
+    :parts [],
+    :seconds 1.581394417,
+    :spec
+    "first item of xs, or 0 when xs is empty (= 4 (first-or-zero [4 5])) (= 0 (first-or-zero []))",
+    :checked true,
+    :calls 8,
+    :program "(defn first-or-zero [xs] (if-let [x (first xs)] x 0))",
+    :tested 0}
+   {:asked [],
+    :passed true,
+    :dropped nil,
+    :edit nil,
+    :parts [],
+    :seconds 1.470817625,
+    :spec
+    "clamp x between lo and hi (= 5 (clamp 5 0 10)) (= 0 (clamp -3 0 10)) (= 10 (clamp 12 0 10))",
+    :checked true,
+    :calls 7,
+    :program "(defn clamp [x lo hi] (min (max x lo) hi))",
+    :tested 0}]]}

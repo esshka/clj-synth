@@ -82,6 +82,7 @@ on the `split` benchmark set of eight such functions, as many passed alone as af
 | `--trace` | | Print every decision to stderr: the hole, the chosen option and its probability. |
 | `--pick` | | Experimental repair flow: Jev picks each repair among concrete changes shown as code. |
 | `--sure` | | One more request asks what the function returns for fixed inputs; each answer Jev is sure of becomes a test. |
+| `--plan` | | One more request asks if a formula or a repetition gives the result; for a formula the first step is asked as "the last step". |
 | `--model MODEL` | `jev-latest` | Jev model to query. |
 | `--max-depth N` | `8` | Deepest nesting at which compound forms are offered. |
 | `--max-steps N` | `48` | Maximum decisions per program. |
@@ -227,6 +228,7 @@ with `pr-str`, never assembled from strings.
 | `src/cljjev/local.clj` | Local repair: ranks and runs the changes, and asks Jev to pick among those that pass. Shrink: removes what a passing program's tests never needed |
 | `src/cljjev/library.clj` | Solved functions as options for the next specifications, loaded by every runner |
 | `src/cljjev/oracle.clj` | Asks Jev what a function returns for fixed inputs; its sure answers become tests |
+| `src/cljjev/wording.clj` | Jev picks how the first step of the build is asked |
 | `src/cljjev/batch.clj` | Runs thousands of programs on the same tests in a few `bb` processes |
 | `src/cljjev/trace.clj` | Re-runs each test with spies to record subtree values |
 | `src/cljjev/validate.clj` | Shape checks and out-of-process test runs |
@@ -259,7 +261,7 @@ change in [CHANGELOG.md](CHANGELOG.md) as described there. Planned work is track
 
 ## Benchmark
 
-`clojure -M:bench [--mock|flat] [pick] [sure] [--runs N] [basic|hard|held|split|whole]` runs 15 basic, 14
+`clojure -M:bench [--mock|flat] [pick] [sure] [plan] [--runs N] [basic|hard|held|split|whole]` runs 15 basic, 14
 harder or 12 held-out specifications (never used for tuning) N times, reports the pass rate and
 the number of API calls of each run with their median and range, and writes every run to
 `bench/results/`. A program passes only if it also passes hidden checks (`checks` in
@@ -287,27 +289,37 @@ this project with its model taken out, not the best search that needs no model.
 
 `sure` adds Jev's sure answers to each spec's tests (the `--sure` option) and saves the set as
 `<set>-sure`. A test whose call is in a hidden check is dropped first, so the checks stay hidden.
-One live run of each set on 2026-11-26, beside the earlier scores (for basic, hard and held the
-two runs of 2026-10-21, with the shrink replay in brackets):
+Two live runs of each set on 2026-11-26, beside the earlier scores (for basic, hard and held the
+two runs of 2026-10-21, with the shrink replay in brackets). The second run had the second look:
 
 | Set | Without | With `sure` | Only fit the tests | API calls |
 | --- | --- | --- | --- | --- |
-| basic | 14 and 14 (15) / 15 | 15 / 15 | 0 | 221, was 138 to 140 |
-| hard | 11 and 11 (12) / 14 | 13 / 14 | 0 | 426, was 378 to 389 |
-| held | 11 and 11 (11) / 12 | 10 / 12 | 0 | 426, was 325 to 375 |
-| split | 5 / 8 | 5 / 8 | 1 | 875, was 707 |
+| basic | 14 and 14 (15) / 15 | 15 and 15 / 15 | 0 and 0 | 221 and 152, was 138 to 140 |
+| hard | 11 and 11 (12) / 14 | 13 and 13 / 14 | 0 and 0 | 426 and 511, was 378 to 389 |
+| held | 11 and 11 (11) / 12 | 10 and 11 / 12 | 0 and 0 | 426 and 426, was 325 to 375 |
+| split | 5 / 8 | 5 and 5 / 8 | 1 and 1 | 875 and 762, was 707 |
 
-Jev wrote 257 tests for 47 of the 58 functions. Checked against known correct programs, 248 of the
-251 that could be checked agree with them, and no program that only fits its tests was left on
-basic, hard and held. `largest`, `dot`, `power` and `take-n` passed. The cost is real too. On the
-held set `(= 35 (square-sum 5))` is wrong (it is 55), and that one test failed the correct
-program the search had found. `(= 0 (choose 4 6))` is right in mathematics, and the simple formula
-has no answer there. One wrong test fails a right program, so `sure` is an option, not the default.
+No program that only fits its tests was left on basic, hard and held, and `largest`, `dot`, `power`
+and `take-n` passed in both runs. Jev wrote about 257 tests a run, for 47 of the 58 functions,
+and the same ones both times. Checked against known correct programs, all agree but two kinds.
+`(= 35 (square-sum 5))` is wrong (it is 55): in the first run it failed the correct program the
+search had found, and in the second run the second look dropped it and the program passed. For
+`choose`, Jev answers where k is above n, `(= 0 (choose 4 6))` and once `(= 28 (choose 2 8))`,
+and the simple formula has no answer there. The failures left are search failures: `prime?` on
+hard and in split, `spread` on held, `choose`, and `longest`, which got one test and is still
+`(collatz n)`. `sure` costs about a fifth more API calls and is still an option, not the default.
 
-The second look was added after these runs. In a probe Jev left its wrong 35 for 55, and kept its
-own answer in all 23 cases where the program was the wrong one. Replayed on the four runs above, it
-asks once and drops `(= 35 (square-sum 5))`, so the held score is 11 of 12; nothing else changes.
-It has one wrong test to its name, so this is a sample too.
+`plan` (the `--plan` option) lets Jev pick the wording of the first step. Asked which production
+fills the body, Jev takes the form that looks most like the task, `(gcd a b)` for `lcm` at 0.54;
+asked for "the last step, the one that gives the final value", it takes `/` at 0.59. That wording
+breaks recursion (`fib` then starts with its recursive call), so one request first asks if a
+formula or a repetition gives the result. In a probe the right first form was then the top pick
+on 21 of 29 basic and hard specs, against 22 with the one wording, and `lcm` and `choose` both
+started with a division. One live run of `sure plan split`: 6 of 8 (472 API calls), against 5 and
+5 for `sure split`. The new pass is `prime-sum`, and it came from its part `prime?` passing in
+this run, not from the wording. `choose` got the right shape for the first time,
+`(/ (factorial n) (/ (factorial k) (factorial (- n k))))` with one operator wrong, and the right
+formula fails only Jev's three tests with k above n, where it has no answer.
 
 One live run of each on 2026-11-26: 4 of 8 main functions passed after their parts (558 API calls,
 parts included) and 4 of 8 alone (528 calls). The same four passed both ways (`digital-root`,
