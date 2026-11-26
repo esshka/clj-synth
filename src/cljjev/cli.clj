@@ -125,8 +125,8 @@
                                 (solve))
                             outcome)
                   outcome (second-look outcome spec asked policy)
-                  _ (when-let [t (:dropped outcome)]
-                      (err (str "dropped Jev's test " t ": shown both answers, Jev took the program's")))
+                  _ (doseq [t (:dropped outcome)]
+                      (err (str "dropped Jev's test " t " after a second look")))
                   code (max code (report outcome (:out options) (not= spec (first arguments))))]
               (if more
                 (recur more

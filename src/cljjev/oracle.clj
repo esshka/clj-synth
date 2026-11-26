@@ -64,33 +64,75 @@
                    :when v]
                (str "(= " v " " (call input) ")")))))))
 
-(defn second-look
-  "Returns outcome with :dropped, one of Jev's tests in asked, taken out of the best
-  program's results when that program passes every other test and Jev, shown the program's
-  number beside its own, no longer backs its first answer: one wrong test fails a right
-  program, as (= 35 (square-sum 5)) did. Else returns outcome; one request when it asks.
-  ponytail: numbers only, a yes or no has no second answer to show; and the search has
-  spent its tries by now, so look inside the search if this fires often."
+(defn- about [spec]
+  (let [pools (extract spec [])]
+    {:function (first (:names pools)) :meaning (:prose pools) :examples (:tests pools)}))
+
+(defn- call-of [test]
+  (second (re-find #"^\(= \S+ (.+)\)$" test)))
+
+(defn- failed-on-jev
+  "Returns the failed results of outcome's best program when each is one of Jev's tests."
+  [outcome asked]
+  (let [failed (remove :ok (:results (g/best outcome)))]
+    (when (every? (set asked) (map :test failed))
+      failed)))
+
+(defn- without
+  "Returns outcome with tests out of its best program's results and in :dropped."
+  [outcome tests]
+  (if (empty? tests)
+    outcome
+    (let [at (.indexOf ^java.util.List (:attempts outcome) (g/best outcome))]
+      (-> outcome
+          (update :dropped (fnil into []) tests)
+          (update-in [:attempts at :results] (fn [rs] (vec (remove #((set tests) (:test %)) rs))))))))
+
+(defn- domain-look
+  "Drops the tests on which the best program gives an error and whose input Jev says is not
+  of the kind the spec's examples show: (= 0 (choose 4 6)) when every example has k at most n."
   [outcome spec asked policy]
-  (let [best (g/best outcome)
-        failed (remove :ok (:results best))
+  (let [errors (filter #(str/starts-with? (:detail %) "ERROR") (failed-on-jev outcome asked))]
+    (if (empty? errors)
+      outcome
+      (let [answers (policy (about spec)
+                            (ordered (for [{:keys [test]} errors]
+                                       [test {:type "noul"
+                                              :instructions (str "Is " (call-of test) " an input of the same "
+                                                                 "kind as the calls in `examples`? Answer no "
+                                                                 "when it breaks a condition that every "
+                                                                 "example meets.")}])))]
+        (without (update outcome :calls inc)
+                 (for [{:keys [test]} errors :when (< (get-in answers [test "noul"] 1.0) backed)] test))))))
+
+(defn- value-look
+  "Drops the one number test the best program fails when Jev, shown the program's number
+  beside its own, no longer backs its first answer, as with (= 35 (square-sum 5))."
+  [outcome spec asked policy]
+  (let [failed (failed-on-jev outcome asked)
         {:keys [test detail]} (first failed)
         [_ first-answer got] (some->> detail (re-find #"^FAIL expected (-?\d+), got (-?\d+)$"))]
-    (if-not (and (= 1 (count failed)) (some #{test} asked) got)
+    (if-not (and (= 1 (count failed)) got)
       outcome
-      (let [pools (extract spec [])
-            call (second (re-find #"^\(= \S+ (.+)\)$" test))
-            options (ordered (concat (for [n (sort [(parse-long first-answer) (parse-long got)])]
+      (let [options (ordered (concat (for [n (sort [(parse-long first-answer) (parse-long got)])]
                                        [(str n) (str n)])
                                      [["other" "another number"]]))
-            answer (get (policy {:function (first (:names pools)) :meaning (:prose pools)
-                                 :examples (:tests pools)}
+            answer (get (policy (about spec)
                                 {"look" {:type "choice" :criteria options
-                                         :instructions (str "Two answers were given for " call
+                                         :instructions (str "Two answers were given for " (call-of test)
                                                             ". Which number is it?")}})
-                        "look")
-            at (.indexOf ^java.util.List (:attempts outcome) best)]
-        (cond-> (update outcome :calls inc)
-          (< (get-in answer ["probabilities" first-answer] 0.0) backed)
-          (-> (assoc :dropped test)
-              (update-in [:attempts at :results] (fn [rs] (vec (remove #(= test (:test %)) rs))))))))))
+                        "look")]
+        (without (update outcome :calls inc)
+                 (when (< (get-in answer ["probabilities" first-answer] 0.0) backed) [test]))))))
+
+(defn second-look
+  "Returns outcome with the tests of asked, Jev's tests, that do not hold up taken out of the
+  best program's results and listed in :dropped; one wrong test fails a right program. It
+  looks only when the best program passes every test of the spec, and makes one request for
+  each look it takes.
+  ponytail: no look at a wrong yes or no, which has no second answer to show; and the
+  search has spent its tries by now, so look inside the search if this fires often."
+  [outcome spec asked policy]
+  (-> outcome
+      (domain-look spec asked policy)
+      (value-look spec asked policy)))

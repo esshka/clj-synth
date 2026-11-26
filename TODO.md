@@ -24,10 +24,10 @@ Planned work, highest priority first. Move an item to [CHANGELOG.md](CHANGELOG.m
   36 with Jev, so Jev's answers carry this search. That baseline starts from one tiny program and
   its small changes. A search that builds every small program from the inputs upward, and merges
   those that give the same values on the tests, is the fair rival and is not built.
-- [ ] **Keep Jev's tests inside the domain of the spec.** With `--plan`, `choose` reaches the right
-  formula, and that formula fails only Jev's tests with k above n: `(= 0 (choose 4 6))`,
-  `(= 0 (choose 0 5))`, `(= 28 (choose 2 8))`. The spec's own tests all have k at most n. A test
-  on which the best program gives an error, not a wrong value, needs its own second look.
+- [ ] **See the domain look work live.** It drops a test of Jev's when the best program gives an
+  error there and Jev says the input is not of the examples' kind. The probe and a replay
+  support it, but no live run has needed it: `choose` passed twice with a guard for k above n.
+  Zero inputs are its weak point: Jev called `(lcm 5 0)` and `(longest 0)` outside.
 - [ ] **Measure `--plan` on basic, hard and held.** It has one live run, on `split`. The probe says
   the first step stays right on 21 of 29 specs against 22, which is a proxy and not a score.
 - [ ] **Let Jev divide: probed, not built.** Several `SPEC` arguments let a person split a hard

@@ -27,6 +27,14 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- The second look also checks the domain of Jev's tests (`domain-look` in
+  `src/cljjev/oracle.clj`): when the best program passes the spec's tests and gives an error on
+  one of Jev's, Jev is asked if that input is of the kind the spec's examples show, and a test
+  outside them is dropped. In a probe Jev said no for all three `choose` tests with k above n and
+  yes for 173 of 176 tests inside the domain. It has not fired in a live run: `choose`, run twice
+  with `--sure --plan`, passed both times with a guard for k above n (48 and 45 API calls; it
+  failed in all five earlier `split` runs).
+
 - `--plan` and `clojure -M:bench plan <set>` (`src/cljjev/wording.clj`): one request asks Jev if a
   formula or a repetition gives the result, and for a formula the first step of the build is
   asked as "the last step, the one that gives the final value". `lcm` and `choose` then start

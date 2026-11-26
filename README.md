@@ -124,7 +124,10 @@ With `--sure`, Jev also writes tests: an answer at 0.9 or more to "what is `(lar
 becomes a test. A test can only reject a program, so a wrong answer can make a right program
 fail, and then the exit status is `1` because of a test the user did not write. When the best
 program fails only one of Jev's number tests, Jev gets a second look: it sees its number and the
-program's number, and if it leaves its first answer, that test is dropped.
+program's number, and if it leaves its first answer, that test is dropped. When the best program
+gives an error on one of Jev's tests, Jev is asked if that input is of the same kind as the
+spec's examples, and a test outside them is dropped: `(= 0 (choose 4 6))` when every example has
+k at most n.
 
 **Programs are data.** A program is plain Clojure data (lists, vectors, symbols and numbers) that
 is read by the Clojure reader and printed back. An unfilled slot is a map such as
@@ -320,6 +323,12 @@ started with a division. One live run of `sure plan split`: 6 of 8 (472 API call
 this run, not from the wording. `choose` got the right shape for the first time,
 `(/ (factorial n) (/ (factorial k) (factorial (- n k))))` with one operator wrong, and the right
 formula fails only Jev's three tests with k above n, where it has no answer.
+
+After that run Jev's tests got the look at their domain, and `choose` was run alone with
+`--sure --plan`, after `factorial`, twice. It passed both times, in 48 and 45 API calls, as
+`(if (< n k) 0 (/ (factorial n) (* (factorial k) (factorial (- n k)))))`: the search met Jev's
+tests with a guard, so the new look was not needed and has not fired live yet. Replayed on the
+failed results of the saved runs it drops nothing.
 
 One live run of each on 2026-11-26: 4 of 8 main functions passed after their parts (558 API calls,
 parts included) and 4 of 8 alone (528 calls). The same four passed both ways (`digital-root`,
